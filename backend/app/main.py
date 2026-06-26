@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.instagram import fetch_caption
 from app.parser import parse_recipe
-from app.storage import save_recipe
+from app.storage import list_categories, list_recipes, save_recipe
 
 # Temporary fixed category list. In Phase 3 these come from the user's in-app
 # list / database; hardcoded here so we can test the full pipeline now.
@@ -31,6 +31,18 @@ class ImportRequest(BaseModel):
 def health() -> dict:
     """Simple health check — confirms the server is running."""
     return {"status": "ok"}
+
+
+@app.get("/categories")
+def get_categories() -> list[dict]:
+    """List the fixed categories the frontend offers for browsing."""
+    return list_categories()
+
+
+@app.get("/recipes")
+def get_recipes(category: str | None = None) -> list[dict]:
+    """List saved recipes, optionally filtered by ?category=<name>."""
+    return list_recipes(category)
 
 
 @app.post("/import")

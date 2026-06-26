@@ -35,6 +35,35 @@ def _category_id(client: Client, name: str | None) -> int | None:
     return result.data[0]["id"] if result.data else None
 
 
+def list_categories() -> list[dict]:
+    """Return every category (id + name), sorted by name.
+
+    A plain SELECT — the read counterpart to save_recipe's INSERT.
+    """
+    client = _client()
+    result = client.table("categories").select("id, name").order("name").execute()
+    return result.data
+
+
+def list_recipes(category: str | None = None) -> list[dict]:
+    """Return recipes (newest first), optionally filtered by category name.
+
+    Joins in each recipe's category name so the frontend needn't map ids.
+    When filtering, '!inner' forces an inner join so non-matching recipes are
+    excluded; a plain join only nulls the category and keeps the row.
+    """
+    client = _client()
+    # Inner join only when filtering; left join otherwise so Unknown
+    # (null-category) recipes still appear in the full list.
+    join = "categories!inner(name)" if category else "categories(name)"
+    query = client.table("recipes").select(f"*, {join}").order(
+        "created_at", desc=True
+    )
+    if category:
+        query = query.eq("categories.name", category)
+    return query.execute().data
+
+
 def save_recipe(recipe: dict) -> dict:
     """Insert a parsed recipe and return the stored row (with its new id).
 

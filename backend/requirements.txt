@@ -1,2 +1,8 @@
 # Python dependencies for the Digital CookBook backend.
-# We add libraries here one at a time as we need them (next: yt-dlp).
+# We add libraries here one at a time as we need them.
+
+# Calls the Apify Instagram scraper API over HTTP.
+requests
+
+# Loads secrets (API tokens) from the .env file into the environment.
+python-dotenv

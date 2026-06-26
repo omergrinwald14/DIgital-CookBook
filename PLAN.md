@@ -50,11 +50,11 @@ Ingredients/steps stored as JSON columns on the recipe row for v1.
   ingredients (json, nullable), steps (json, nullable), added_by, created_at`
 
 ## Build phases
-**Phase 1 — Walking skeleton (prove the risky core first):**
+**Phase 1 — Walking skeleton (prove the risky core first): ✅ COMPLETE**
 - [x] 1a. Backend folder structure + Python virtual environment + `.gitignore`.
 - [x] 1b. Fetch function: Instagram URL → caption. **Proven working via Apify API.**
 - [x] 1c. Gemini parser: caption + category list → structured JSON. **Proven (gemini-2.5-flash).**
-- [ ] 1d. Wrap as FastAPI endpoint `POST /import` returning the parsed recipe.
+- [x] 1d. FastAPI `POST /import` (URL → fetch → parse → recipe JSON). **Proven end-to-end.**
 
 **Phase 2 — Storage:** Supabase tables; save parsed recipe; null/Unknown fallback.
 

@@ -9,3 +9,7 @@ python-dotenv
 
 # Google Gemini SDK — parses captions into structured recipe data.
 google-genai
+
+# Web framework + ASGI server that expose the backend as an HTTP API.
+fastapi
+uvicorn[standard]

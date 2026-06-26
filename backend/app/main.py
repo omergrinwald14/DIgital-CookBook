@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from app.instagram import fetch_caption
 from app.parser import parse_recipe
+from app.storage import save_recipe
 
 # Temporary fixed category list. In Phase 3 these come from the user's in-app
 # list / database; hardcoded here so we can test the full pipeline now.
@@ -42,7 +43,7 @@ def import_recipe(body: ImportRequest) -> dict:
     recipe = parse_recipe(meta["caption"], CATEGORIES)
 
     # Merge the two sources: parsed recipe fields + fetch metadata (link/thumb).
-    return {
+    merged = {
         "title": recipe.get("title") or meta.get("title"),
         "category": recipe.get("category"),
         "ingredients": recipe.get("ingredients"),
@@ -50,3 +51,6 @@ def import_recipe(body: ImportRequest) -> dict:
         "source_url": meta.get("source_url"),
         "thumbnail": meta.get("thumbnail"),
     }
+
+    # Persist it and return the stored row (now with a real id + created_at).
+    return save_recipe(merged)

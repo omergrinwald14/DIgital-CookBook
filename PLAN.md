@@ -56,7 +56,12 @@ Ingredients/steps stored as JSON columns on the recipe row for v1.
 - [x] 1c. Gemini parser: caption + category list → structured JSON. **Proven (gemini-2.5-flash).**
 - [x] 1d. FastAPI `POST /import` (URL → fetch → parse → recipe JSON). **Proven end-to-end.**
 
-**Phase 2 — Storage:** Supabase tables; save parsed recipe; null/Unknown fallback.
+**Phase 2 — Storage (Supabase):**
+- [x] 2a. Create Supabase project + store URL/secret key in `.env`.
+- [x] 2b. Create `categories` + `recipes` tables (RLS enabled); seed categories.
+- [x] 2c. `storage.py` `save_recipe()` — maps category name→id (Unknown→null).
+- [x] 2d. Wire `save_recipe` into `POST /import`. **Proven: import now persists.**
+- [ ] 2e. Read endpoints: `GET /recipes` and `GET /categories` (feeds the frontend).
 
 **Phase 3 — Frontend (read path):** PWA lists categories/recipes, opens source video;
 manage the fixed category list in-app.

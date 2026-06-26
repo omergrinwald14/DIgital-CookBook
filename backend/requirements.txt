@@ -13,3 +13,6 @@ google-genai
 # Web framework + ASGI server that expose the backend as an HTTP API.
 fastapi
 uvicorn[standard]
+
+# Supabase client — reads/writes our hosted Postgres database.
+supabase

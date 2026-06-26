@@ -1,0 +1,9 @@
+# Python virtual environment — thousands of files, never commit this.
+.venv/
+
+# Python bytecode cache.
+__pycache__/
+*.pyc
+
+# Secrets (API keys for Gemini, Supabase). Never commit.
+.env

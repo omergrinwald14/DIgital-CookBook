@@ -1,0 +1,2 @@
+# Python dependencies for the Digital CookBook backend.
+# We add libraries here one at a time as we need them (next: yt-dlp).

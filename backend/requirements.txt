@@ -6,3 +6,6 @@ requests
 
 # Loads secrets (API tokens) from the .env file into the environment.
 python-dotenv
+
+# Google Gemini SDK — parses captions into structured recipe data.
+google-genai

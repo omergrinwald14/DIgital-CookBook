@@ -6,6 +6,7 @@ modules; this file just wires them together behind endpoints.
 """
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.instagram import fetch_caption
@@ -20,6 +21,15 @@ CATEGORIES = [
 ]
 
 app = FastAPI(title="Digital CookBook API")
+
+# Allow the browser frontend (a different origin) to call this API.
+# Dev-permissive: any origin. Tighten to the real frontend URL before deploy.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class ImportRequest(BaseModel):

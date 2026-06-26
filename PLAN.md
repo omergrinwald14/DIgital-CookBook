@@ -63,8 +63,19 @@ Ingredients/steps stored as JSON columns on the recipe row for v1.
 - [x] 2d. Wire `save_recipe` into `POST /import`. **Proven: import now persists.**
 - [x] 2e. Read endpoints: `GET /recipes` and `GET /categories` (feeds the frontend).
 
-**Phase 3 — Frontend (read path):** PWA lists categories/recipes, opens source video;
-manage the fixed category list in-app.
+**Phase 3 — Frontend (read path):** static frontend in `frontend/` (index.html, app.js,
+styles.css), served over HTTP. **Read path proven end-to-end.**
+- [x] 3a-1. Backend CORS (`CORSMiddleware`) so the browser frontend can call the API.
+- [x] 3a-2. Frontend scaffold; fetch + render categories.
+- [x] 3a-3a. Render recipes as cards (title, thumbnail, source-video link). **Bugfix:**
+  reuse one Supabase client (singleton) — per-request `create_client()` stalled and
+  wedged the server. First request warms up (~10-25s once), then ~0.2s.
+- [x] 3a-3b. Category chips filter the recipe list (+ "All" chip, active highlight).
+- [x] 3a-4. Click a card to expand its ingredients + steps.
+- [ ] 3a-5. In-app category management (first **write** feature beyond import):
+  `POST /categories`, `DELETE /categories/{id}`; frontend UI to add/remove categories.
+
+> Dev note: browser caches `app.js`/`styles.css` — hard-refresh (Ctrl+Shift+R) after edits.
 
 **Phase 4 — Capture (write path):** Android Web Share Target; iOS Shortcut; paste-link
 fallback. All hit `POST /import`.

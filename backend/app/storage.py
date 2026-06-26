@@ -17,11 +17,21 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 
+# Module-level singleton: created once, reused for every request. Creating a
+# fresh client per call skipped connection pooling — each request re-paid the
+# (currently ~11s) TLS/connect cost and leaked the connection, stalling the
+# server. One shared client keeps the pool warm (~0.2s per query).
+_client_instance: Client | None = None
+
+
 def _client() -> Client:
-    """Create a Supabase client (fails loudly if credentials are missing)."""
-    if not (SUPABASE_URL and SUPABASE_KEY):
-        raise RuntimeError("SUPABASE_URL / SUPABASE_KEY missing in backend/.env")
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    """Return the shared Supabase client, creating it once on first use."""
+    global _client_instance
+    if _client_instance is None:
+        if not (SUPABASE_URL and SUPABASE_KEY):
+            raise RuntimeError("SUPABASE_URL / SUPABASE_KEY missing in backend/.env")
+        _client_instance = create_client(SUPABASE_URL, SUPABASE_KEY)
+    return _client_instance
 
 
 def _category_id(client: Client, name: str | None) -> int | None:

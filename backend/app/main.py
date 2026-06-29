@@ -5,13 +5,19 @@ phone's Share button) can use it. The heavy lifting lives in the imported
 modules; this file just wires them together behind endpoints.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.instagram import fetch_caption
 from app.parser import parse_recipe
-from app.storage import list_categories, list_recipes, save_recipe
+from app.storage import (
+    create_category,
+    delete_category,
+    list_categories,
+    list_recipes,
+    save_recipe,
+)
 
 # Temporary fixed category list. In Phase 3 these come from the user's in-app
 # list / database; hardcoded here so we can test the full pipeline now.
@@ -37,6 +43,11 @@ class ImportRequest(BaseModel):
     url: str
 
 
+class CategoryRequest(BaseModel):
+    """Body for POST /categories — the new category's name."""
+    name: str
+
+
 @app.get("/")
 def health() -> dict:
     """Simple health check — confirms the server is running."""
@@ -47,6 +58,27 @@ def health() -> dict:
 def get_categories() -> list[dict]:
     """List the fixed categories the frontend offers for browsing."""
     return list_categories()
+
+
+@app.post("/categories", status_code=201)
+def add_category(body: CategoryRequest) -> dict:
+    """Create a category and return the stored row (id + name).
+
+    Validation lives here at the endpoint: blank names are rejected with 400
+    before we touch the DB. 201 = 'Created', the correct status for a POST
+    that makes a new resource.
+    """
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Category name cannot be empty.")
+    return create_category(name)
+
+
+@app.delete("/categories/{category_id}")
+def remove_category(category_id: int) -> dict:
+    """Delete a category by id; its recipes fall back to Unknown."""
+    delete_category(category_id)
+    return {"status": "deleted", "id": category_id}
 
 
 @app.get("/recipes")

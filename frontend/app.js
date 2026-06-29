@@ -11,11 +11,24 @@ function setActiveChip(li) {
   li.classList.add("active");
 }
 
-// Build one clickable category chip.
-function makeChip(label, onClick) {
+// Build one clickable category chip. If categoryId is given, add a ✕ to delete it.
+function makeChip(label, onClick, categoryId = null) {
   const li = document.createElement("li");
-  li.textContent = label;
+  const text = document.createElement("span");
+  text.textContent = label;
+  li.appendChild(text);
   li.addEventListener("click", () => { setActiveChip(li); onClick(); });
+  if (categoryId !== null) {
+    const del = document.createElement("button");
+    del.className = "chip-delete";
+    del.textContent = "×";
+    del.title = `Delete "${label}"`;
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();                 // don't also trigger the filter
+      deleteCategory(categoryId, label);
+    });
+    li.appendChild(del);
+  }
   return li;
 }
 
@@ -31,7 +44,7 @@ async function loadCategories() {
     list.appendChild(all);
     setActiveChip(all); // "All" highlighted on load
     for (const cat of categories) {
-      list.appendChild(makeChip(cat.name, () => loadRecipes(cat.name)));
+      list.appendChild(makeChip(cat.name, () => loadRecipes(cat.name), cat.id));
     }
   } catch (err) {
     list.textContent = `Could not load categories: ${err.message}`;
@@ -147,6 +160,41 @@ function renderRecipeCard(recipe) {
   card.addEventListener("click", () => { details.hidden = !details.hidden; });
 
   return card;
+}
+
+// Create a category from the add form, then refresh the chips.
+async function addCategory(event) {
+  event.preventDefault();           // don't reload the page on submit
+  const input = document.getElementById("new-category-name");
+  const name = input.value.trim();
+  if (!name) return;                // ignore empty; backend also guards (400)
+  try {
+    const res = await fetch(`${API_BASE}/categories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    input.value = "";               // clear the box
+    await loadCategories();         // repaint chips, now including the new one
+  } catch (err) {
+    alert(`Could not add category: ${err.message}`);
+  }
+}
+
+document.getElementById("add-category-form").addEventListener("submit", addCategory);
+
+// Remove a category (after confirm), then refresh chips + recipes.
+async function deleteCategory(id, label) {
+  if (!confirm(`Delete "${label}"? Its recipes will move to Unknown.`)) return;
+  try {
+    const res = await fetch(`${API_BASE}/categories/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await loadCategories();   // repaint chips without the deleted one
+    await loadRecipes();      // recipes may have moved to Unknown
+  } catch (err) {
+    alert(`Could not delete category: ${err.message}`);
+  }
 }
 
 loadCategories();

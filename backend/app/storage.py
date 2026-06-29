@@ -55,6 +55,33 @@ def list_categories() -> list[dict]:
     return result.data
 
 
+def create_category(name: str) -> dict:
+    """Insert a new category and return the stored row (id + name).
+
+    The write counterpart to list_categories. Mirrors save_recipe's INSERT
+    pattern. Input validation (empty/duplicate names) lives at the endpoint
+    layer (5c), keeping this function a thin DB operation.
+    """
+    client = _client()
+    result = client.table("categories").insert({"name": name}).execute()
+    return result.data[0]
+
+
+def delete_category(category_id: int) -> None:
+    """Delete a category; its recipes fall back to Unknown (category_id null).
+
+    Two ordered steps: first detach recipes (set category_id = null) so the
+    foreign key won't block the delete, then remove the category row. This
+    enforces the plan's "null -> Unknown" rule instead of cascading deletes
+    (which destroy recipes) or failing on the FK constraint.
+    """
+    client = _client()
+    client.table("recipes").update({"category_id": None}).eq(
+        "category_id", category_id
+    ).execute()
+    client.table("categories").delete().eq("id", category_id).execute()
+
+
 def list_recipes(category: str | None = None) -> list[dict]:
     """Return recipes (newest first), optionally filtered by category name.
 

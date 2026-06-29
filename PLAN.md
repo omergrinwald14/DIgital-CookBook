@@ -47,7 +47,8 @@ JS PWA frontend → browse categories → view recipe → open original video
 Ingredients/steps stored as JSON columns on the recipe row for v1.
 - **categories**: `id, name, created_at`
 - **recipes**: `id, title, category_id (null → Unknown), source_url, thumbnail,
-  ingredients (json, nullable), steps (json, nullable), added_by, created_at`
+  ingredients (json, nullable), steps (json, nullable), is_favorite, is_up_next,
+  added_by, created_at`
 
 ## Build phases
 **Phase 1 — Walking skeleton (prove the risky core first): ✅ COMPLETE**
@@ -78,8 +79,14 @@ styles.css), served over HTTP. **Read path + category management proven.** ✅ C
 
 > Dev note: browser caches `app.js`/`styles.css` — hard-refresh (Ctrl+Shift+R) after edits.
 
-**Phase 4 — Capture (write path):** Android Web Share Target; iOS Shortcut; paste-link
-fallback. All hit `POST /import`.
+**Phase 3.5 — user-requested extras: ✅ COMPLETE**
+- [x] Web import: paste an Instagram URL in the app → `POST /import` (the Phase 4
+  paste-link fallback, pulled forward).
+- [x] Collections: **Favorites** + **Up Next** — cross-category, per-recipe flags
+  (`is_favorite`, `is_up_next`). `PATCH /recipes/{id}`; filter chips + card toggles.
+
+**Phase 4 — Capture (write path):** Android Web Share Target; iOS Shortcut. (In-app
+paste-link already works — see Phase 3.5.) All hit `POST /import`.
 
 **Phase 5 — Sharing & polish:** family login, search, thumbnails, edit a recipe.
 

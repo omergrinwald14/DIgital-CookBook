@@ -43,6 +43,9 @@ async function loadCategories() {
     const all = makeChip("All", () => loadRecipes()); // clears the filter
     list.appendChild(all);
     setActiveChip(all); // "All" highlighted on load
+    // Special cross-category collections (no id -> no delete button).
+    list.appendChild(makeChip("★ Favorites", () => loadRecipes(null, "favorites")));
+    list.appendChild(makeChip("🔖 Up Next", () => loadRecipes(null, "up_next")));
     for (const cat of categories) {
       list.appendChild(makeChip(cat.name, () => loadRecipes(cat.name), cat.id));
     }
@@ -52,19 +55,21 @@ async function loadCategories() {
 }
 
 // Fetch recipes (optionally filtered by category) and render each as a card.
-async function loadRecipes(category = null) {
+async function loadRecipes(category = null, collection = null) {
   const container = document.getElementById("recipe-list");
   container.textContent = "Loading…";
   try {
-    const url = category
-      ? `${API_BASE}/recipes?category=${encodeURIComponent(category)}`
-      : `${API_BASE}/recipes`;
-    const res = await fetch(url);
+    // Build an encoded query string; filter by category OR collection.
+    const params = new URLSearchParams();
+    if (category) params.set("category", category);
+    if (collection) params.set("collection", collection);
+    const qs = params.toString();
+    const res = await fetch(`${API_BASE}/recipes${qs ? `?${qs}` : ""}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const recipes = await res.json();
     container.innerHTML = ""; // clear "Loading…"
     if (recipes.length === 0) {
-      container.textContent = "No recipes in this category yet.";
+      container.textContent = "No recipes here yet.";
       return;
     }
     for (const recipe of recipes) {
@@ -123,6 +128,37 @@ function renderDetails(recipe) {
   return details;
 }
 
+// Build a flag toggle button for a recipe card (★ Favorites / 🔖 Up Next).
+function makeFlagToggle(recipe, key, onGlyph, offGlyph, label) {
+  const btn = document.createElement("button");
+  btn.className = "flag-toggle";
+  const render = () => {
+    btn.textContent = recipe[key] ? onGlyph : offGlyph;
+    btn.classList.toggle("active", recipe[key]);
+    btn.title = recipe[key] ? `Remove from ${label}` : `Add to ${label}`;
+  };
+  render();
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();                  // don't expand the card
+    btn.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/recipes/${recipe.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: !recipe[key] }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      recipe[key] = !recipe[key];          // reflect new state locally
+      render();
+    } catch (err) {
+      alert(`Could not update: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  return btn;
+}
+
 // Build one recipe card. Uses textContent/attributes (not innerHTML) so
 // caption-derived text can't inject markup (XSS-safe).
 function renderRecipeCard(recipe) {
@@ -144,6 +180,12 @@ function renderRecipeCard(recipe) {
   category.className = "recipe-category";
   category.textContent = recipe.categories?.name || "Unknown";
   card.appendChild(category);
+
+  const tools = document.createElement("div");
+  tools.className = "recipe-tools";
+  tools.appendChild(makeFlagToggle(recipe, "is_favorite", "★", "☆", "Favorites"));
+  tools.appendChild(makeFlagToggle(recipe, "is_up_next", "🔖", "🔖", "Up Next"));
+  card.appendChild(tools);
 
   if (recipe.source_url) {
     const link = document.createElement("a");

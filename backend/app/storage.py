@@ -82,15 +82,17 @@ def delete_category(category_id: int) -> None:
     client.table("categories").delete().eq("id", category_id).execute()
 
 
-def list_recipes(category: str | None = None) -> list[dict]:
-    """Return recipes (newest first), optionally filtered by category name.
+def list_recipes(
+    category: str | None = None, collection: str | None = None
+) -> list[dict]:
+    """Return recipes (newest first), optionally filtered.
 
-    Joins in each recipe's category name so the frontend needn't map ids.
-    When filtering, '!inner' forces an inner join so non-matching recipes are
-    excluded; a plain join only nulls the category and keeps the row.
+    `category` filters by category name (inner join). `collection` filters by a
+    cross-cutting flag: "favorites" -> is_favorite, "up_next" -> is_up_next.
+    The two are independent; the frontend uses them one at a time.
     """
     client = _client()
-    # Inner join only when filtering; left join otherwise so Unknown
+    # Inner join only when filtering by category; left join otherwise so Unknown
     # (null-category) recipes still appear in the full list.
     join = "categories!inner(name)" if category else "categories(name)"
     query = client.table("recipes").select(f"*, {join}").order(
@@ -98,6 +100,10 @@ def list_recipes(category: str | None = None) -> list[dict]:
     )
     if category:
         query = query.eq("categories.name", category)
+    if collection == "favorites":
+        query = query.eq("is_favorite", True)
+    elif collection == "up_next":
+        query = query.eq("is_up_next", True)
     return query.execute().data
 
 
@@ -118,6 +124,26 @@ def save_recipe(recipe: dict) -> dict:
         "steps": recipe.get("steps"),              # list -> stored as jsonb
     }
     result = client.table("recipes").insert(row).execute()
+    return result.data[0]
+
+
+def set_recipe_flags(
+    recipe_id: int, *, is_favorite: bool | None = None, is_up_next: bool | None = None
+) -> dict:
+    """Update a recipe's collection flags and return the updated row.
+
+    Only the flags passed (non-None) are written, so Favorites and Up Next
+    toggle independently. Keyword-only args prevent mixing the two booleans.
+    """
+    updates: dict = {}
+    if is_favorite is not None:
+        updates["is_favorite"] = is_favorite
+    if is_up_next is not None:
+        updates["is_up_next"] = is_up_next
+    if not updates:
+        raise ValueError("no flags to update")
+    client = _client()
+    result = client.table("recipes").update(updates).eq("id", recipe_id).execute()
     return result.data[0]
 
 

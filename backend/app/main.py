@@ -17,6 +17,7 @@ from app.storage import (
     list_categories,
     list_recipes,
     save_recipe,
+    set_recipe_flags,
 )
 
 # Temporary fixed category list. In Phase 3 these come from the user's in-app
@@ -46,6 +47,12 @@ class ImportRequest(BaseModel):
 class CategoryRequest(BaseModel):
     """Body for POST /categories — the new category's name."""
     name: str
+
+
+class RecipeFlags(BaseModel):
+    """Body for PATCH /recipes/{id} — optional collection flags to toggle."""
+    is_favorite: bool | None = None
+    is_up_next: bool | None = None
 
 
 @app.get("/")
@@ -82,9 +89,21 @@ def remove_category(category_id: int) -> dict:
 
 
 @app.get("/recipes")
-def get_recipes(category: str | None = None) -> list[dict]:
-    """List saved recipes, optionally filtered by ?category=<name>."""
-    return list_recipes(category)
+def get_recipes(
+    category: str | None = None, collection: str | None = None
+) -> list[dict]:
+    """List recipes, filtered by ?category=<name> or ?collection=favorites|up_next."""
+    return list_recipes(category, collection)
+
+
+@app.patch("/recipes/{recipe_id}")
+def update_recipe_flags(recipe_id: int, body: RecipeFlags) -> dict:
+    """Toggle a recipe's Favorites / Up Next membership; returns the updated row."""
+    if body.is_favorite is None and body.is_up_next is None:
+        raise HTTPException(status_code=400, detail="No flags provided.")
+    return set_recipe_flags(
+        recipe_id, is_favorite=body.is_favorite, is_up_next=body.is_up_next
+    )
 
 
 @app.post("/import")

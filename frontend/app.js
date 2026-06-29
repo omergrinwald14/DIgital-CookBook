@@ -184,6 +184,38 @@ async function addCategory(event) {
 
 document.getElementById("add-category-form").addEventListener("submit", addCategory);
 
+// Import a recipe from a pasted URL via POST /import (slow: fetch + LLM parse).
+async function importRecipe(event) {
+  event.preventDefault();
+  const input = document.getElementById("import-url");
+  const button = event.target.querySelector("button");
+  const status = document.getElementById("import-status");
+  const url = input.value.trim();
+  if (!url) return;
+
+  button.disabled = true;                       // prevent double-submit
+  status.hidden = false;
+  status.textContent = "Importing… this can take 10–30s.";
+  try {
+    const res = await fetch(`${API_BASE}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const recipe = await res.json();
+    input.value = "";
+    status.textContent = `Added: ${recipe.title || "Untitled"}`;
+    await loadRecipes();                         // show the new recipe
+  } catch (err) {
+    status.textContent = `Import failed: ${err.message}`;
+  } finally {
+    button.disabled = false;                     // always re-enable
+  }
+}
+
+document.getElementById("import-form").addEventListener("submit", importRecipe);
+
 // Remove a category (after confirm), then refresh chips + recipes.
 async function deleteCategory(id, label) {
   if (!confirm(`Delete "${label}"? Its recipes will move to Unknown.`)) return;

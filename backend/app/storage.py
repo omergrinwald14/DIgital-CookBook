@@ -5,7 +5,9 @@ rest of the app never deals with Supabase directly. Uses the secret key, which
 runs server-side only and bypasses Row Level Security.
 """
 
+import functools
 import os
+import threading
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,6 +36,21 @@ def _client() -> Client:
     return _client_instance
 
 
+# The shared client uses one synchronous HTTP/2 connection, which isn't safe
+# under concurrent use from FastAPI's threadpool (Windows raises WinError 10035
+# when two requests race). Serialize all DB access through one lock — fine at
+# personal-app scale. RLock so a decorated fn can call another without deadlock.
+_lock = threading.RLock()
+
+
+def _synchronized(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with _lock:
+            return fn(*args, **kwargs)
+    return wrapper
+
+
 def _category_id(client: Client, name: str | None) -> int | None:
     """Map a category NAME to its id. Returns None for Unknown/no match.
 
@@ -45,6 +62,7 @@ def _category_id(client: Client, name: str | None) -> int | None:
     return result.data[0]["id"] if result.data else None
 
 
+@_synchronized
 def list_categories() -> list[dict]:
     """Return every category (id + name), sorted by name.
 
@@ -55,6 +73,7 @@ def list_categories() -> list[dict]:
     return result.data
 
 
+@_synchronized
 def create_category(name: str) -> dict:
     """Insert a new category and return the stored row (id + name).
 
@@ -67,6 +86,7 @@ def create_category(name: str) -> dict:
     return result.data[0]
 
 
+@_synchronized
 def delete_category(category_id: int) -> None:
     """Delete a category; its recipes fall back to Unknown (category_id null).
 
@@ -82,6 +102,7 @@ def delete_category(category_id: int) -> None:
     client.table("categories").delete().eq("id", category_id).execute()
 
 
+@_synchronized
 def list_recipes(
     category: str | None = None, collection: str | None = None
 ) -> list[dict]:
@@ -107,6 +128,7 @@ def list_recipes(
     return query.execute().data
 
 
+@_synchronized
 def save_recipe(recipe: dict) -> dict:
     """Insert a parsed recipe and return the stored row (with its new id).
 
@@ -127,6 +149,7 @@ def save_recipe(recipe: dict) -> dict:
     return result.data[0]
 
 
+@_synchronized
 def set_recipe_flags(
     recipe_id: int, *, is_favorite: bool | None = None, is_up_next: bool | None = None
 ) -> dict:
@@ -147,6 +170,7 @@ def set_recipe_flags(
     return result.data[0]
 
 
+@_synchronized
 def delete_recipe(recipe_id: int) -> None:
     """Delete a recipe by id.
 

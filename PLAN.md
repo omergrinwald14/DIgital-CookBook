@@ -93,10 +93,18 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
 - [x] 4-3. Web Share Target: manifest `share_target` + `share.html` handler.
   **Proven end-to-end on a real Android phone** (share reel → recipe saved).
 - [ ] 4-4. iOS Shortcut: POSTs the shared link to `/import`.
-- [x] Reachability for phone testing: cloudflared quick tunnels (one per server,
-  backend + frontend) — proven. NOTE: `API_BASE` (app.js + share.html) is
-  localhost in git; point it at the backend tunnel URL temporarily to test on a
-  phone, then revert before committing. Deploy (Render + Cloudflare Pages) later.
+- [ ] 4-5. Fire-and-forget share: queue shares in IndexedDB + Background Sync —
+  instant confirmation, automatic retry. Decouples the user from Render's
+  cold-start wait (the reel-sharing UX we want).
+- [x] **Deployed (permanent, free):** backend on **Render**
+  (`https://digital-cookbook-api.onrender.com`), frontend on **Cloudflare
+  Workers** (`https://digital-cookbook.omergrinwald14.workers.dev`). Config is
+  version-controlled: `render.yaml` (backend) + `wrangler.jsonc` (frontend).
+  `API_BASE` now points at the live backend permanently — the old "revert to
+  localhost before committing" rule is retired. Cloudflare strips `.html`, so
+  `/share.html` 307-redirects to `/share` (query params preserved — share works).
+- [x] Earlier reachability path (now superseded by the deploy above): cloudflared
+  quick tunnels, one per server — proven for phone testing.
 
 **Phase 4 fixes (alongside 4-3):**
 - [x] Parser language: title/ingredients/steps now stay in the caption's

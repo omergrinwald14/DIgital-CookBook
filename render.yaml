@@ -1,0 +1,23 @@
+# Render Blueprint — declares how to deploy the Digital CookBook backend.
+# Render reads this file from the repo root on "New > Blueprint".
+services:
+  - type: web              # a public HTTP service (vs. a background worker)
+    name: digital-cookbook-api
+    runtime: python
+    plan: free             # free tier; sleeps after 15 min idle, cold-starts on next hit
+    rootDir: backend       # our code lives in backend/, not the repo root
+    buildCommand: pip install -r requirements.txt
+    # $PORT is injected by Render at runtime; 0.0.0.0 accepts external traffic.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /     # our GET / returns {"status":"ok"}
+    envVars:
+      # sync:false = "I'll set the value by hand in the dashboard."
+      # Keeps secrets out of git while still declaring they're required.
+      - key: APIFY_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false

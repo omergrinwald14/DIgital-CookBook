@@ -84,9 +84,22 @@ styles.css), served over HTTP. **Read path + category management proven.** ✅ C
   paste-link fallback, pulled forward).
 - [x] Collections: **Favorites** + **Up Next** — cross-category, per-recipe flags
   (`is_favorite`, `is_up_next`). `PATCH /recipes/{id}`; filter chips + card toggles.
+- [x] Recipe deletion: `DELETE /recipes/{id}` + a corner × on each recipe card.
 
 **Phase 4 — Capture (write path):** Android Web Share Target; iOS Shortcut. (In-app
 paste-link already works — see Phase 3.5.) All hit `POST /import`.
+- [x] 4-1. Installable PWA: web app manifest + icon, linked in `index.html`.
+- [x] 4-2. Minimal service worker (`sw.js`) — required for install + share target.
+- [ ] 4-3. Web Share Target: manifest `share_target` + a `/share` handler (Android).
+- [ ] 4-4. iOS Shortcut: POSTs the shared link to `/import`.
+- [ ] Reachability for phone testing: cloudflared tunnel now; deploy (Render +
+  Cloudflare Pages) later.
+- TODO: swap the placeholder SVG icon for square **PNGs** (192/512) — Chrome's OS
+  install icon wants raster squares (the SVG triggers a manifest warning).
+
+> Note: the shared Supabase client is serialized with a lock (`storage.py`
+> `@_synchronized`) — concurrent requests over its HTTP/2 connection raced into
+> WinError 10035 on Windows. Don't remove it.
 
 **Phase 5 — Sharing & polish:** family login, search, thumbnails, edit a recipe.
 

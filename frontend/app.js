@@ -1,7 +1,7 @@
 // Frontend behavior — talks to the backend and renders the result.
 // Separate from index.html so structure (HTML) and logic (JS) don't mix.
 
-const API_BASE = "http://127.0.0.1:8000"; // backend dev server
+const API_BASE = "https://digital-cookbook-api.onrender.com"; // live backend (Render)
 
 // Cache of categories (id+name), refreshed by loadCategories(). Card pickers
 // read this so each card can list every category without its own fetch.

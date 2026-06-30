@@ -23,7 +23,9 @@ main { padding:1rem; max-width:600px; margin:0 auto; }
 .recipe-category { margin:0 .8rem; color:var(--accent); font-size:.85rem; font-weight:600; }
 .recipe-card a { margin:.6rem .8rem .8rem; color:var(--accent); text-decoration:none; font-size:.9rem; }
 .recipe-card a:hover { text-decoration:underline; }
-.recipe-card { cursor: pointer; }
+.recipe-card { cursor: pointer; position: relative; }
+.recipe-delete { position:absolute; top:.4rem; right:.4rem; z-index:1; width:1.5rem; height:1.5rem; padding:0; line-height:1; font-size:1rem; cursor:pointer; color:var(--fg); background:rgba(255,255,255,.85); border:1px solid #e0d8cf; border-radius:999px; }
+.recipe-delete:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
 .recipe-details { padding: 0 .8rem .8rem; }
 .recipe-details h4 { margin:.6rem 0 .3rem; font-size:.9rem; }
 .recipe-details ul, .recipe-details ol { margin:0; padding-left:1.2rem; }

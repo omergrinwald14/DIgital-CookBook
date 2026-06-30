@@ -147,6 +147,16 @@ def set_recipe_flags(
     return result.data[0]
 
 
+def delete_recipe(recipe_id: int) -> None:
+    """Delete a recipe by id.
+
+    Recipes are leaf rows (nothing references them), so this is a straight
+    DELETE — simpler than delete_category, which first detaches its recipes.
+    """
+    client = _client()
+    client.table("recipes").delete().eq("id", recipe_id).execute()
+
+
 # Direct test:  py app/storage.py  — inserts one sample recipe.
 if __name__ == "__main__":
     import json

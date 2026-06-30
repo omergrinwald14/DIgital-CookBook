@@ -14,6 +14,7 @@ from app.parser import parse_recipe
 from app.storage import (
     create_category,
     delete_category,
+    delete_recipe,
     list_categories,
     list_recipes,
     save_recipe,
@@ -104,6 +105,13 @@ def update_recipe_flags(recipe_id: int, body: RecipeFlags) -> dict:
     return set_recipe_flags(
         recipe_id, is_favorite=body.is_favorite, is_up_next=body.is_up_next
     )
+
+
+@app.delete("/recipes/{recipe_id}")
+def remove_recipe(recipe_id: int) -> dict:
+    """Delete a recipe by id."""
+    delete_recipe(recipe_id)
+    return {"status": "deleted", "id": recipe_id}
 
 
 @app.post("/import")

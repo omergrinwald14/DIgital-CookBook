@@ -165,6 +165,25 @@ function renderRecipeCard(recipe) {
   const card = document.createElement("article");
   card.className = "recipe-card";
 
+  const del = document.createElement("button");
+  del.className = "recipe-delete";
+  del.textContent = "×";
+  del.title = "Delete recipe";
+  del.addEventListener("click", async (e) => {
+    e.stopPropagation();                       // don't expand the card
+    if (!confirm(`Delete "${recipe.title || "this recipe"}"? This can't be undone.`)) return;
+    del.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/recipes/${recipe.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      card.remove();                           // drop just this card from the view
+    } catch (err) {
+      alert(`Could not delete: ${err.message}`);
+      del.disabled = false;
+    }
+  });
+  card.appendChild(del);
+
   if (recipe.thumbnail) {
     const img = document.createElement("img");
     img.src = recipe.thumbnail;

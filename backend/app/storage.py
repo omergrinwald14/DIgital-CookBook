@@ -138,11 +138,29 @@ def list_recipes(
 def save_recipe(recipe: dict) -> dict:
     """Insert a parsed recipe and return the stored row (with its new id).
 
+    Idempotent on source_url: importing the same reel twice (double-submit,
+    share + paste, or a Background Sync retry) returns the existing row instead
+    of creating a duplicate. source_url is NOT NULL and unique per post, so it's
+    our natural dedupe key; the module lock makes this check-then-insert atomic.
+
     Args:
         recipe: dict with title, category (name), ingredients, steps,
                 source_url, thumbnail — the shape returned by POST /import.
     """
     client = _client()
+
+    source_url = recipe.get("source_url")
+    if source_url:
+        existing = (
+            client.table("recipes")
+            .select("*")
+            .eq("source_url", source_url)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return existing.data[0]          # already saved — return it, don't duplicate
+
     row = {
         "title": recipe.get("title"),
         "category_id": _category_id(client, recipe.get("category")),

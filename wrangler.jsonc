@@ -1,0 +1,9 @@
+{
+  // Wrangler config — tells Cloudflare how to deploy the frontend.
+  // No "main" script = an assets-only Worker (a pure static site).
+  "name": "digital-cookbook",            // must match the project name in the wizard
+  "compatibility_date": "2026-06-30",
+  "assets": {
+    "directory": "./frontend"            // serve our static frontend/ folder as the web root
+  }
+}

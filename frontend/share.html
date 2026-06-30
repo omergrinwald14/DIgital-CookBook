@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Saving recipe… — CookBook</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main style="max-width: 480px; margin: 4rem auto; padding: 1.5rem; text-align: center;">
+    <h1>Digital CookBook</h1>
+    <p id="status">Reading shared link…</p>
+    <p><a href="/">← Back to recipes</a></p>
+  </main>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000"; // backend dev server (matches app.js)
+    const statusEl = document.getElementById("status");
+
+    // Shared data arrives as query params (manifest share_target, GET method).
+    const params = new URLSearchParams(window.location.search);
+    const text = params.get("text") || "";
+    const urlParam = params.get("url") || "";
+
+    // Instagram puts the link in `url` sometimes, but usually inside `text`.
+    function extractUrl() {
+      if (/^https?:\/\//i.test(urlParam)) return urlParam.trim();
+      const match = text.match(/https?:\/\/\S+/i);
+      return match ? match[0] : "";
+    }
+
+    async function run() {
+      const url = extractUrl();
+      if (!url) {
+        statusEl.textContent = "No link found in the shared content.";
+        return;
+      }
+      statusEl.textContent = "Saving recipe…";
+      try {
+        const res = await fetch(`${API_BASE}/import`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        if (!res.ok) throw new Error(`Import failed (${res.status})`);
+        statusEl.textContent = "Saved! Returning to your recipes…";
+        setTimeout(() => { window.location.href = "/"; }, 1200);
+      } catch (err) {
+        statusEl.textContent = `Could not save: ${err.message}`;
+      }
+    }
+
+    run();
+  </script>
+</body>
+</html>

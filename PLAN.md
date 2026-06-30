@@ -90,10 +90,23 @@ styles.css), served over HTTP. **Read path + category management proven.** ✅ C
 paste-link already works — see Phase 3.5.) All hit `POST /import`.
 - [x] 4-1. Installable PWA: web app manifest + icon, linked in `index.html`.
 - [x] 4-2. Minimal service worker (`sw.js`) — required for install + share target.
-- [ ] 4-3. Web Share Target: manifest `share_target` + a `/share` handler (Android).
+- [x] 4-3. Web Share Target: manifest `share_target` + `share.html` handler.
+  **Proven end-to-end on a real Android phone** (share reel → recipe saved).
 - [ ] 4-4. iOS Shortcut: POSTs the shared link to `/import`.
-- [ ] Reachability for phone testing: cloudflared tunnel now; deploy (Render +
-  Cloudflare Pages) later.
+- [x] Reachability for phone testing: cloudflared quick tunnels (one per server,
+  backend + frontend) — proven. NOTE: `API_BASE` (app.js + share.html) is
+  localhost in git; point it at the backend tunnel URL temporarily to test on a
+  phone, then revert before committing. Deploy (Render + Cloudflare Pages) later.
+
+**Phase 4 fixes (alongside 4-3):**
+- [x] Parser language: title/ingredients/steps now stay in the caption's
+  language (was translating Hebrew → English); cross-language category matching.
+- [x] `/import` uses the user's **live** categories from the DB (was a stale
+  hardcoded list missing "Meatballs", so it mis-fell back to Unknown).
+- [x] Manual re-categorize: per-card category `<select>` (existing or new) →
+  `PATCH /recipes/{id}` now also accepts `category`. `set_recipe_flags` →
+  `update_recipe` (general partial update).
+- [x] "Unknown" filter chip: `?category=Unknown` → recipes with null category.
 - TODO: swap the placeholder SVG icon for square **PNGs** (192/512) — Chrome's OS
   install icon wants raster squares (the SVG triggers a manifest warning).
 

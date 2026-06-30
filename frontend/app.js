@@ -3,6 +3,10 @@
 
 const API_BASE = "http://127.0.0.1:8000"; // backend dev server
 
+// Cache of categories (id+name), refreshed by loadCategories(). Card pickers
+// read this so each card can list every category without its own fetch.
+let categoriesCache = [];
+
 // Track which chip is highlighted, so we can clear it when another is clicked.
 let activeChip = null;
 function setActiveChip(li) {
@@ -39,6 +43,7 @@ async function loadCategories() {
     const res = await fetch(`${API_BASE}/categories`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const categories = await res.json();
+    categoriesCache = categories; // keep the cache in sync for card pickers
     list.innerHTML = ""; // clear "Loading…"
     const all = makeChip("All", () => loadRecipes()); // clears the filter
     list.appendChild(all);
@@ -46,6 +51,7 @@ async function loadCategories() {
     // Special cross-category collections (no id -> no delete button).
     list.appendChild(makeChip("★ Favorites", () => loadRecipes(null, "favorites")));
     list.appendChild(makeChip("🔖 Up Next", () => loadRecipes(null, "up_next")));
+    list.appendChild(makeChip("Unknown", () => loadRecipes("Unknown")));
     for (const cat of categories) {
       list.appendChild(makeChip(cat.name, () => loadRecipes(cat.name), cat.id));
     }
@@ -159,6 +165,69 @@ function makeFlagToggle(recipe, key, onGlyph, offGlyph, label) {
   return btn;
 }
 
+// Build the category picker for a card: a <select> of Unknown + every
+// category + a "new category" sentinel. Changing it PATCHes the recipe;
+// the "new" option creates the category first, then assigns it.
+function makeCategoryPicker(recipe) {
+  const select = document.createElement("select");
+  select.className = "recipe-category";
+  select.addEventListener("click", (e) => e.stopPropagation()); // don't toggle card
+
+  const current = recipe.categories?.name || "Unknown";
+  const NEW = "__new__";
+
+  // Dedup with a Set so `current` always appears even if the cache lags.
+  const names = [...new Set(["Unknown", current, ...categoriesCache.map((c) => c.name)])];
+  for (const name of names) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    if (name === current) opt.selected = true;
+    select.appendChild(opt);
+  }
+  const newOpt = document.createElement("option");
+  newOpt.value = NEW;
+  newOpt.textContent = "＋ New category…";
+  select.appendChild(newOpt);
+
+  select.addEventListener("change", async () => {
+    let category = select.value;
+    if (category === NEW) {
+      const name = (prompt("New category name:") || "").trim();
+      if (!name) { select.value = current; return; } // cancelled
+      // Only create it if it's genuinely new (avoids duplicate-insert errors).
+      if (!categoriesCache.some((c) => c.name === name)) {
+        const res = await fetch(`${API_BASE}/categories`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        if (!res.ok) {
+          alert(`Could not create category: HTTP ${res.status}`);
+          select.value = current;
+          return;
+        }
+        await loadCategories(); // refresh chips + cache with the new one
+      }
+      category = name;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/recipes/${recipe.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      recipe.categories = category === "Unknown" ? null : { name: category };
+    } catch (err) {
+      alert(`Could not change category: ${err.message}`);
+      select.value = current;
+    }
+  });
+
+  return select;
+}
+
 // Build one recipe card. Uses textContent/attributes (not innerHTML) so
 // caption-derived text can't inject markup (XSS-safe).
 function renderRecipeCard(recipe) {
@@ -195,10 +264,7 @@ function renderRecipeCard(recipe) {
   title.textContent = recipe.title || "Untitled";
   card.appendChild(title);
 
-  const category = document.createElement("p");
-  category.className = "recipe-category";
-  category.textContent = recipe.categories?.name || "Unknown";
-  card.appendChild(category);
+  card.appendChild(makeCategoryPicker(recipe));
 
   const tools = document.createElement("div");
   tools.className = "recipe-tools";
@@ -290,8 +356,7 @@ async function deleteCategory(id, label) {
   }
 }
 
-loadCategories();
-loadRecipes();
+loadCategories().then(loadRecipes); // categories first so card pickers have the cache
 
 // Register the service worker (enables PWA install + Web Share Target).
 if ("serviceWorker" in navigator) {

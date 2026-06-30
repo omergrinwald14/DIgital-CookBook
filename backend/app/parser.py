@@ -38,6 +38,12 @@ From the caption below, extract:
 
 Rules:
 - Return ONLY valid JSON, no commentary.
+- LANGUAGE: write "title", ingredient names, and "steps" in the SAME language
+  as the caption. Do NOT translate the recipe content.
+- CATEGORY MATCHING: the allowed category names above may be written in a
+  different language than the caption. Match by MEANING (translate mentally),
+  then output the category string EXACTLY as it appears in the allowed list.
+  Example: a Hebrew caption "קציצות בקר" matches the allowed category "Meatballs".
 - If the caption contains no actual recipe, return:
   {{"title": null, "ingredients": null, "steps": null, "category": "Unknown"}}
 

@@ -108,18 +108,24 @@ def list_recipes(
 ) -> list[dict]:
     """Return recipes (newest first), optionally filtered.
 
-    `category` filters by category name (inner join). `collection` filters by a
-    cross-cutting flag: "favorites" -> is_favorite, "up_next" -> is_up_next.
-    The two are independent; the frontend uses them one at a time.
+    `category` filters by category name (inner join); the special value
+    "Unknown" filters to recipes with no category (category_id IS NULL).
+    `collection` filters by a cross-cutting flag: "favorites" -> is_favorite,
+    "up_next" -> is_up_next. The two are independent; used one at a time.
     """
     client = _client()
-    # Inner join only when filtering by category; left join otherwise so Unknown
-    # (null-category) recipes still appear in the full list.
-    join = "categories!inner(name)" if category else "categories(name)"
+    # Inner join only when filtering by a real category; left join otherwise so
+    # Unknown (null-category) recipes still appear.
+    if category and category != "Unknown":
+        join = "categories!inner(name)"
+    else:
+        join = "categories(name)"
     query = client.table("recipes").select(f"*, {join}").order(
         "created_at", desc=True
     )
-    if category:
+    if category == "Unknown":
+        query = query.is_("category_id", "null")   # the null-category bucket
+    elif category:
         query = query.eq("categories.name", category)
     if collection == "favorites":
         query = query.eq("is_favorite", True)
@@ -150,22 +156,30 @@ def save_recipe(recipe: dict) -> dict:
 
 
 @_synchronized
-def set_recipe_flags(
-    recipe_id: int, *, is_favorite: bool | None = None, is_up_next: bool | None = None
+def update_recipe(
+    recipe_id: int,
+    *,
+    is_favorite: bool | None = None,
+    is_up_next: bool | None = None,
+    category: str | None = None,
 ) -> dict:
-    """Update a recipe's collection flags and return the updated row.
+    """Partial-update a recipe and return the updated row.
 
-    Only the flags passed (non-None) are written, so Favorites and Up Next
-    toggle independently. Keyword-only args prevent mixing the two booleans.
+    Only the fields passed (non-None) are written, so a caller can toggle a
+    collection flag OR reassign the category independently. `category` is a
+    NAME, mapped to category_id here (Unknown / unrecognized name -> null),
+    reusing save_recipe's rule. Keyword-only args prevent positional mix-ups.
     """
+    client = _client()
     updates: dict = {}
     if is_favorite is not None:
         updates["is_favorite"] = is_favorite
     if is_up_next is not None:
         updates["is_up_next"] = is_up_next
+    if category is not None:
+        updates["category_id"] = _category_id(client, category)
     if not updates:
-        raise ValueError("no flags to update")
-    client = _client()
+        raise ValueError("no fields to update")
     result = client.table("recipes").update(updates).eq("id", recipe_id).execute()
     return result.data[0]
 

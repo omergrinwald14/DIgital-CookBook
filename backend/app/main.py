@@ -18,15 +18,8 @@ from app.storage import (
     list_categories,
     list_recipes,
     save_recipe,
-    set_recipe_flags,
+    update_recipe,
 )
-
-# Temporary fixed category list. In Phase 3 these come from the user's in-app
-# list / database; hardcoded here so we can test the full pipeline now.
-CATEGORIES = [
-    "Pasta", "Soup", "Salad", "Dessert",
-    "Chicken", "Beef", "Breakfast", "Drinks",
-]
 
 app = FastAPI(title="Digital CookBook API")
 
@@ -50,10 +43,11 @@ class CategoryRequest(BaseModel):
     name: str
 
 
-class RecipeFlags(BaseModel):
-    """Body for PATCH /recipes/{id} — optional collection flags to toggle."""
+class RecipePatch(BaseModel):
+    """Body for PATCH /recipes/{id} — any subset of fields to update."""
     is_favorite: bool | None = None
     is_up_next: bool | None = None
+    category: str | None = None
 
 
 @app.get("/")
@@ -98,12 +92,15 @@ def get_recipes(
 
 
 @app.patch("/recipes/{recipe_id}")
-def update_recipe_flags(recipe_id: int, body: RecipeFlags) -> dict:
-    """Toggle a recipe's Favorites / Up Next membership; returns the updated row."""
-    if body.is_favorite is None and body.is_up_next is None:
-        raise HTTPException(status_code=400, detail="No flags provided.")
-    return set_recipe_flags(
-        recipe_id, is_favorite=body.is_favorite, is_up_next=body.is_up_next
+def patch_recipe(recipe_id: int, body: RecipePatch) -> dict:
+    """Update a recipe's collection flags and/or category; returns the row."""
+    if body.is_favorite is None and body.is_up_next is None and body.category is None:
+        raise HTTPException(status_code=400, detail="No fields provided.")
+    return update_recipe(
+        recipe_id,
+        is_favorite=body.is_favorite,
+        is_up_next=body.is_up_next,
+        category=body.category,
     )
 
 
@@ -121,7 +118,8 @@ def import_recipe(body: ImportRequest) -> dict:
     Pipeline: URL -> fetch_caption (Apify) -> parse_recipe (Gemini) -> recipe.
     """
     meta = fetch_caption(body.url)
-    recipe = parse_recipe(meta["caption"], CATEGORIES)
+    category_names = [c["name"] for c in list_categories()]
+    recipe = parse_recipe(meta["caption"], category_names)
 
     # Merge the two sources: parsed recipe fields + fetch metadata (link/thumb).
     merged = {

@@ -257,6 +257,7 @@ function renderRecipeCard(recipe) {
 
   if (recipe.thumbnail) {
     const img = document.createElement("img");
+    img.referrerPolicy = "no-referrer";   // Instagram's CDN 403s cross-site referers
     img.src = recipe.thumbnail;
     img.alt = recipe.title || "Recipe";
     card.appendChild(img);

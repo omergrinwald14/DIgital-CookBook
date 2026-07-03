@@ -39,15 +39,20 @@ def fetch_caption(url: str) -> dict:
     # Tell the scraper exactly which post to fetch, and to stop after one.
     payload = {"directUrls": [url], "resultsType": "posts", "resultsLimit": 1}
 
-    response = requests.post(
-        APIFY_URL,
-        params={"token": APIFY_TOKEN},
-        json=payload,
-        timeout=120,  # the scraper can take a while to spin up
-    )
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            APIFY_URL,
+            params={"token": APIFY_TOKEN},
+            json=payload,
+            timeout=120,  # the scraper can take a while to spin up
+        )
+        response.raise_for_status()
+        items = response.json()
+    except requests.RequestException:
+        # Apify unreachable/errored (transient hiccup, cold start, blocked post).
+        # Don't crash the import — save with null fields, same as an empty result.
+        return {"caption": None, "title": None, "thumbnail": None, "source_url": url}
 
-    items = response.json()
     if not items:
         # No data (e.g. private/removed post) — return nulls, caller decides.
         return {"caption": None, "title": None, "thumbnail": None, "source_url": url}

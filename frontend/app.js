@@ -106,6 +106,7 @@ function renderDetails(recipe) {
     for (const ing of recipe.ingredients) {
       const li = document.createElement("li");
       li.textContent = formatIngredient(ing);
+      li.dir = "auto";                 // Hebrew -> RTL, English -> LTR (per item)
       ul.appendChild(li);
     }
     details.appendChild(ul);
@@ -123,6 +124,7 @@ function renderDetails(recipe) {
     for (const step of recipe.steps) {
       const li = document.createElement("li");
       li.textContent = step;
+      li.dir = "auto";                 // Hebrew -> RTL, English -> LTR (per item)
       ol.appendChild(li);
     }
     details.appendChild(ol);
@@ -262,6 +264,7 @@ function renderRecipeCard(recipe) {
 
   const title = document.createElement("h3");
   title.textContent = recipe.title || "Untitled";
+  title.dir = "auto";                  // Hebrew -> RTL, English -> LTR (per title)
   card.appendChild(title);
 
   card.appendChild(makeCategoryPicker(recipe));

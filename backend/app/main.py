@@ -18,6 +18,7 @@ from app.storage import (
     list_categories,
     list_recipes,
     save_recipe,
+    store_thumbnail,
     update_recipe,
 )
 
@@ -128,7 +129,7 @@ def import_recipe(body: ImportRequest) -> dict:
         "ingredients": recipe.get("ingredients"),
         "steps": recipe.get("steps"),
         "source_url": meta.get("source_url"),
-        "thumbnail": meta.get("thumbnail"),
+        "thumbnail": store_thumbnail(meta.get("source_url"), meta.get("thumbnail")),
     }
 
     # Persist it and return the stored row (now with a real id + created_at).

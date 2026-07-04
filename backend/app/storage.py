@@ -6,10 +6,12 @@ runs server-side only and bypasses Row Level Security.
 """
 
 import functools
+import hashlib
 import os
 import threading
 from pathlib import Path
 
+import requests
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
@@ -132,6 +134,33 @@ def list_recipes(
     elif collection == "up_next":
         query = query.eq("is_up_next", True)
     return query.execute().data
+
+
+@_synchronized
+def store_thumbnail(source_url: str, thumbnail_url: str | None) -> str | None:
+    """Copy an Instagram thumbnail into our own Supabase Storage bucket.
+
+    Instagram's CDN URLs expire after days and browsers refuse to embed them
+    (Cross-Origin-Resource-Policy), so at import time we download the image
+    server-side and keep a permanent copy. Returns our public URL, or None on
+    any failure — an import must never crash over a missing picture.
+    """
+    if not thumbnail_url:
+        return None
+    try:
+        image = requests.get(thumbnail_url, timeout=30)
+        image.raise_for_status()
+        # Stable filename per post: re-importing overwrites instead of piling up.
+        name = hashlib.md5(source_url.encode()).hexdigest() + ".jpg"
+        client = _client()
+        client.storage.from_("thumbnails").upload(
+            name,
+            image.content,
+            file_options={"content-type": "image/jpeg", "upsert": "true"},
+        )
+        return client.storage.from_("thumbnails").get_public_url(name)
+    except Exception:
+        return None
 
 
 @_synchronized

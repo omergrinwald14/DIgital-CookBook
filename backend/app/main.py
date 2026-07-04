@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app.instagram import fetch_caption
+from app.instagram import fetch_caption, normalize_instagram_url
 from app.parser import parse_recipe
 from app.storage import (
     create_category,
@@ -118,7 +118,11 @@ def import_recipe(body: ImportRequest) -> dict:
 
     Pipeline: URL -> fetch_caption (Apify) -> parse_recipe (Gemini) -> recipe.
     """
-    meta = fetch_caption(body.url)
+    try:
+        url = normalize_instagram_url(body.url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    meta = fetch_caption(url)
     category_names = [c["name"] for c in list_categories()]
     recipe = parse_recipe(meta["caption"], category_names)
 

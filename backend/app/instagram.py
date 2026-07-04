@@ -7,6 +7,7 @@ caption — no scraping or authentication logic lives in our app.
 """
 
 import os
+import re
 from pathlib import Path
 
 import requests
@@ -21,6 +22,26 @@ APIFY_TOKEN = os.environ.get("APIFY_TOKEN")
 # results in a single HTTP call — simplest possible request/response.
 APIFY_ACTOR = "apify~instagram-scraper"
 APIFY_URL = f"https://api.apify.com/v2/acts/{APIFY_ACTOR}/run-sync-get-dataset-items"
+
+# Matches the post code in any Instagram URL shape: /reel/, /reels/, /p/, /tv/.
+_INSTAGRAM_URL_RE = re.compile(r"instagram\.com/(reel|reels|p|tv)/([A-Za-z0-9_-]+)")
+
+
+def normalize_instagram_url(url: str) -> str:
+    """Canonicalize an Instagram URL to one stable, fetchable form.
+
+    Strips tracking params (?igsh=, ?utm_source=) and unifies path shapes so
+    the same post always maps to one URL — fixing Apify (/reels/ returned only
+    the owner, no caption) and dedupe (each variant saved a separate recipe).
+    Raises ValueError on anything that isn't an Instagram post link.
+    """
+    match = _INSTAGRAM_URL_RE.search(url or "")
+    if not match:
+        raise ValueError(f"Not a valid Instagram post URL: {url!r}")
+    kind, code = match.group(1), match.group(2)
+    if kind == "reels":
+        kind = "reel"            # /reels/ (plural) breaks Apify; /reel/ works
+    return f"https://www.instagram.com/{kind}/{code}/"
 
 
 def fetch_caption(url: str) -> dict:

@@ -9,8 +9,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app.instagram import fetch_caption, normalize_instagram_url
+from app.instagram import fetch_caption as fetch_instagram
+from app.instagram import normalize_instagram_url
 from app.parser import parse_recipe
+from app.tiktok import fetch_caption as fetch_tiktok
+from app.tiktok import normalize_tiktok_url
 from app.storage import (
     create_category,
     delete_category,
@@ -142,14 +145,29 @@ def remove_recipe(recipe_id: int) -> dict:
     return {"status": "deleted", "id": recipe_id}
 
 
-@app.post("/import")
-def import_recipe(body: ImportRequest) -> dict:
-    """Fetch an Instagram post and return it as a structured recipe.
+def _resolve_source(raw_url: str):
+    """Map a raw shared link to (canonical URL, fetcher).
 
-    Pipeline: URL -> fetch_caption (Apify) -> parse_recipe (Gemini) -> recipe.
+    One place per supported source: try each normalizer until one claims the
+    URL. Adding a future source = one more except-branch here, nothing else.
     """
     try:
-        url = normalize_instagram_url(body.url)
+        return normalize_instagram_url(raw_url), fetch_instagram
+    except ValueError:
+        try:
+            return normalize_tiktok_url(raw_url), fetch_tiktok
+        except ValueError:
+            raise ValueError(f"Not an Instagram or TikTok post link: {raw_url!r}")
+
+
+@app.post("/import")
+def import_recipe(body: ImportRequest) -> dict:
+    """Fetch an Instagram/TikTok post and return it as a structured recipe.
+
+    Pipeline: URL -> fetch (Apify) -> parse_recipe (Gemini) -> recipe.
+    """
+    try:
+        url, fetch = _resolve_source(body.url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -159,7 +177,7 @@ def import_recipe(body: ImportRequest) -> dict:
     if existing:
         return existing
 
-    meta = fetch_caption(url)
+    meta = fetch(url)
     category_names = [c["name"] for c in list_categories()]
     recipe = parse_recipe(meta["caption"], category_names)
 

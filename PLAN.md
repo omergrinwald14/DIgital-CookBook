@@ -132,6 +132,15 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
 - [ ] 5-3. Login (Supabase auth) — **per-user recipes**: each user sees and
   manages only their own cookbook (scope changed from "shared family data").
 
+**Phase 6 — more sources (pulled forward, user request):**
+- [x] 6-a/b. TikTok import: `tiktok.py` (Apify clockworks~tiktok-scraper;
+  short links vm./vt./t/ resolved via redirect; canonical URL drops the
+  username — post id alone is the dedupe key). `/import` dispatches through
+  `_resolve_source()` — one place to add future sources. **Proven end-to-end.**
+- [x] Share-queue reliability fix: the app drains the IndexedDB share queue on
+  every open (visible banner) — Background Sync alone stranded shares after
+  ~3 failed retries against Render cold starts.
+
 ## Risks
 - **Instagram fetch is free but unofficial.** yt-dlp can break when Instagram changes;
   some private/region-locked posts have no readable caption. Phase 1b proves it early.

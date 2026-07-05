@@ -475,7 +475,43 @@ async function deleteCategory(id, label) {
   }
 }
 
-loadCategories().then(loadRecipes); // categories first so card pickers have the cache
+// Deliver queued shares from the page. Background Sync alone proved
+// unreliable: Chrome stops retrying after ~3 attempts, and each attempt can
+// die against Render's ~50s cold start — entries then sit in IndexedDB
+// forever. Opening the app is now the guaranteed delivery path; the SW sync
+// remains as a best-effort fast path. Mirrors sw.js's drop rule:
+// ok or 4xx (retrying can't fix a bad URL) -> remove; 5xx/network -> keep.
+async function drainPendingShares() {
+  const banner = document.getElementById("pending-shares");
+  let shares;
+  try { shares = await listShares(); } catch { return; }  // IndexedDB unavailable
+  if (!shares.length) return;
+  banner.hidden = false;
+  let saved = 0;
+  for (const [i, share] of shares.entries()) {
+    banner.textContent = `Saving ${shares.length} pending shared recipe(s)… (${i} done)`;
+    try {
+      const res = await fetch(`${API_BASE}/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: share.url }),
+      });
+      if (res.ok || (res.status >= 400 && res.status < 500)) {
+        await removeShare(share.id);
+        if (res.ok) saved++;
+      }
+    } catch { /* offline / server down — keep queued for the next visit */ }
+  }
+  banner.textContent = saved
+    ? `Saved ${saved} shared recipe(s).`
+    : "Pending shares could not be saved — will retry on the next visit.";
+  setTimeout(() => { banner.hidden = true; }, 6000);
+  if (saved) await loadRecipes();
+}
+
+loadCategories().then(loadRecipes).then(drainPendingShares);
+// categories first so card pickers have the cache; recipes render before the
+// (possibly slow, cold-start) queue drain so the app is usable immediately
 
 // Register the service worker (enables PWA install + Web Share Target).
 if ("serviceWorker" in navigator) {

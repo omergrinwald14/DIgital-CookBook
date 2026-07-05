@@ -15,6 +15,7 @@ from app.storage import (
     create_category,
     delete_category,
     delete_recipe,
+    find_recipe_by_url,
     list_categories,
     list_recipes,
     save_recipe,
@@ -25,7 +26,8 @@ from app.storage import (
 app = FastAPI(title="Digital CookBook API")
 
 # Allow the browser frontend (a different origin) to call this API.
-# Dev-permissive: any origin. Tighten to the real frontend URL before deploy.
+# Any origin, deliberately: the API is public until Phase 5 adds auth, and
+# CORS wouldn't stop non-browser clients (curl, iOS Shortcut) anyway.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -74,7 +76,12 @@ def add_category(body: CategoryRequest) -> dict:
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Category name cannot be empty.")
-    return create_category(name)
+    try:
+        return create_category(name)
+    except ValueError:
+        # 409 Conflict = "the resource already exists" — the standard answer
+        # to a duplicate create, distinct from 400 (malformed input).
+        raise HTTPException(status_code=409, detail=f'Category "{name}" already exists.')
 
 
 @app.delete("/categories/{category_id}")
@@ -97,12 +104,15 @@ def patch_recipe(recipe_id: int, body: RecipePatch) -> dict:
     """Update a recipe's collection flags and/or category; returns the row."""
     if body.is_favorite is None and body.is_up_next is None and body.category is None:
         raise HTTPException(status_code=400, detail="No fields provided.")
-    return update_recipe(
-        recipe_id,
-        is_favorite=body.is_favorite,
-        is_up_next=body.is_up_next,
-        category=body.category,
-    )
+    try:
+        return update_recipe(
+            recipe_id,
+            is_favorite=body.is_favorite,
+            is_up_next=body.is_up_next,
+            category=body.category,
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Recipe not found.")
 
 
 @app.delete("/recipes/{recipe_id}")
@@ -122,6 +132,13 @@ def import_recipe(body: ImportRequest) -> dict:
         url = normalize_instagram_url(body.url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Early dedupe: a known URL returns the saved row immediately, skipping
+    # the Apify fetch + Gemini parse (seconds + quota saved on every retry).
+    existing = find_recipe_by_url(url)
+    if existing:
+        return existing
+
     meta = fetch_caption(url)
     category_names = [c["name"] for c in list_categories()]
     recipe = parse_recipe(meta["caption"], category_names)

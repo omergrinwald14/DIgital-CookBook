@@ -77,7 +77,16 @@ def parse_recipe(caption: str, categories: list[str]) -> dict:
         config=types.GenerateContentConfig(response_mime_type="application/json"),
     )
 
-    data = json.loads(response.text)
+    # Malformed model output (bad/empty JSON, or JSON that isn't an object)
+    # degrades to the same null/"Unknown" fallback as a missing caption —
+    # never a 500. Real API errors (network/quota) still raise, so a
+    # Background Sync retry can succeed later.
+    try:
+        data = json.loads(response.text or "")
+    except json.JSONDecodeError:
+        data = None
+    if not isinstance(data, dict):
+        return {"title": None, "ingredients": None, "steps": None, "category": "Unknown"}
 
     # Safety net: enforce our rule even if the model strays.
     if data.get("category") not in categories:

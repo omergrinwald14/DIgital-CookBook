@@ -79,11 +79,16 @@ def list_categories() -> list[dict]:
 def create_category(name: str) -> dict:
     """Insert a new category and return the stored row (id + name).
 
-    The write counterpart to list_categories. Mirrors save_recipe's INSERT
-    pattern. Input validation (empty/duplicate names) lives at the endpoint
-    layer (5c), keeping this function a thin DB operation.
+    The write counterpart to list_categories. Duplicate names raise ValueError
+    (endpoint turns it into a 409); the module lock makes the check-then-insert
+    atomic, mirroring save_recipe's dedupe pattern.
     """
     client = _client()
+    existing = (
+        client.table("categories").select("id").eq("name", name).limit(1).execute()
+    )
+    if existing.data:
+        raise ValueError(f"category {name!r} already exists")
     result = client.table("categories").insert({"name": name}).execute()
     return result.data[0]
 
@@ -136,7 +141,6 @@ def list_recipes(
     return query.execute().data
 
 
-@_synchronized
 def store_thumbnail(source_url: str, thumbnail_url: str | None) -> str | None:
     """Copy an Instagram thumbnail into our own Supabase Storage bucket.
 
@@ -144,6 +148,9 @@ def store_thumbnail(source_url: str, thumbnail_url: str | None) -> str | None:
     (Cross-Origin-Resource-Policy), so at import time we download the image
     server-side and keep a permanent copy. Returns our public URL, or None on
     any failure — an import must never crash over a missing picture.
+
+    The download runs OUTSIDE the lock — it can take up to 30s and doesn't
+    touch the shared client; only the Supabase upload needs serializing.
     """
     if not thumbnail_url:
         return None
@@ -152,15 +159,34 @@ def store_thumbnail(source_url: str, thumbnail_url: str | None) -> str | None:
         image.raise_for_status()
         # Stable filename per post: re-importing overwrites instead of piling up.
         name = hashlib.md5(source_url.encode()).hexdigest() + ".jpg"
-        client = _client()
-        client.storage.from_("thumbnails").upload(
-            name,
-            image.content,
-            file_options={"content-type": "image/jpeg", "upsert": "true"},
-        )
-        return client.storage.from_("thumbnails").get_public_url(name)
+        with _lock:
+            client = _client()
+            client.storage.from_("thumbnails").upload(
+                name,
+                image.content,
+                file_options={"content-type": "image/jpeg", "upsert": "true"},
+            )
+            return client.storage.from_("thumbnails").get_public_url(name)
     except Exception:
         return None
+
+
+@_synchronized
+def find_recipe_by_url(source_url: str) -> dict | None:
+    """Return the stored recipe for a source_url, or None if not saved yet.
+
+    Lets /import short-circuit on a known duplicate BEFORE paying for the
+    Apify fetch + Gemini parse (save_recipe also uses it as a last-line guard).
+    """
+    client = _client()
+    result = (
+        client.table("recipes")
+        .select("*")
+        .eq("source_url", source_url)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
 
 
 @_synchronized
@@ -170,7 +196,8 @@ def save_recipe(recipe: dict) -> dict:
     Idempotent on source_url: importing the same reel twice (double-submit,
     share + paste, or a Background Sync retry) returns the existing row instead
     of creating a duplicate. source_url is NOT NULL and unique per post, so it's
-    our natural dedupe key; the module lock makes this check-then-insert atomic.
+    our natural dedupe key; the module lock makes this check-then-insert atomic
+    (RLock, so the nested find_recipe_by_url call is fine).
 
     Args:
         recipe: dict with title, category (name), ingredients, steps,
@@ -180,15 +207,9 @@ def save_recipe(recipe: dict) -> dict:
 
     source_url = recipe.get("source_url")
     if source_url:
-        existing = (
-            client.table("recipes")
-            .select("*")
-            .eq("source_url", source_url)
-            .limit(1)
-            .execute()
-        )
-        if existing.data:
-            return existing.data[0]          # already saved — return it, don't duplicate
+        existing = find_recipe_by_url(source_url)
+        if existing:
+            return existing          # already saved — return it, don't duplicate
 
     row = {
         "title": recipe.get("title"),
@@ -228,6 +249,10 @@ def update_recipe(
     if not updates:
         raise ValueError("no fields to update")
     result = client.table("recipes").update(updates).eq("id", recipe_id).execute()
+    if not result.data:
+        # LookupError (not HTTPException): storage stays HTTP-agnostic; the
+        # endpoint layer translates this into a 404.
+        raise LookupError(f"recipe {recipe_id} not found")
     return result.data[0]
 
 

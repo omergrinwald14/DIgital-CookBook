@@ -199,17 +199,19 @@ function makeCategoryPicker(recipe) {
       if (!name) { select.value = current; return; } // cancelled
       // Only create it if it's genuinely new (avoids duplicate-insert errors).
       if (!categoriesCache.some((c) => c.name === name)) {
-        const res = await fetch(`${API_BASE}/categories`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        });
-        if (!res.ok) {
-          alert(`Could not create category: HTTP ${res.status}`);
+        try {
+          const res = await fetch(`${API_BASE}/categories`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          await loadCategories(); // refresh chips + cache with the new one
+        } catch (err) {
+          alert(`Could not create category: ${err.message}`);
           select.value = current;
           return;
         }
-        await loadCategories(); // refresh chips + cache with the new one
       }
       category = name;
     }

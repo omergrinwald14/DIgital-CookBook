@@ -281,6 +281,16 @@ function renderRecipeCard(recipe) {
   });
   card.appendChild(del);
 
+  const edit = document.createElement("button");
+  edit.className = "recipe-edit";
+  edit.textContent = "✎";
+  edit.title = "Edit recipe";
+  edit.addEventListener("click", (e) => {
+    e.stopPropagation();                       // don't expand the card
+    card.replaceWith(renderEditForm(recipe));  // swap card -> edit form
+  });
+  card.appendChild(edit);
+
   if (recipe.thumbnail) {
     const img = document.createElement("img");
     img.referrerPolicy = "no-referrer";   // Instagram's CDN 403s cross-site referers
@@ -316,6 +326,85 @@ function renderRecipeCard(recipe) {
   card.appendChild(details);
   card.addEventListener("click", () => { details.hidden = !details.hidden; });
 
+  return card;
+}
+
+// Build the in-place edit form that temporarily replaces a recipe card.
+// Ingredients/steps are edited as plain text, one per line. Edited
+// ingredients are saved as name-only (quantity/unit null) — cards display
+// the same either way, we just stop guessing structure from free text.
+function renderEditForm(recipe) {
+  const card = document.createElement("article");
+  card.className = "recipe-card editing";
+  const form = document.createElement("form");
+  form.className = "edit-form";
+
+  // Small helper: a labelled field, so the form reads top-to-bottom.
+  function field(labelText, el) {
+    const label = document.createElement("label");
+    label.textContent = labelText;
+    label.appendChild(el);
+    form.appendChild(label);
+  }
+
+  const titleIn = document.createElement("input");
+  titleIn.type = "text";
+  titleIn.value = recipe.title || "";
+  titleIn.dir = "auto";
+  field("Title", titleIn);
+
+  const ingIn = document.createElement("textarea");
+  ingIn.rows = 6;
+  ingIn.dir = "auto";
+  ingIn.value = (recipe.ingredients || []).map(formatIngredient).join("\n");
+  field("Ingredients (one per line)", ingIn);
+
+  const stepsIn = document.createElement("textarea");
+  stepsIn.rows = 8;
+  stepsIn.dir = "auto";
+  stepsIn.value = (recipe.steps || []).join("\n");
+  field("Steps (one per line)", stepsIn);
+
+  const buttons = document.createElement("div");
+  buttons.className = "edit-buttons";
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  const cancel = document.createElement("button");
+  cancel.type = "button";                     // type=button: don't submit
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => {
+    card.replaceWith(renderRecipeCard(recipe)); // discard edits, restore card
+  });
+  buttons.append(save, cancel);
+  form.appendChild(buttons);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const toLines = (s) => s.split("\n").map((l) => l.trim()).filter(Boolean);
+    const body = {
+      title: titleIn.value.trim(),
+      ingredients: toLines(ingIn.value).map((name) => ({ name, quantity: null, unit: null })),
+      steps: toLines(stepsIn.value),
+    };
+    if (!body.title) { alert("Title cannot be empty."); return; }
+    save.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/recipes/${recipe.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      Object.assign(recipe, body);              // reflect saved edits locally
+      card.replaceWith(renderRecipeCard(recipe));
+    } catch (err) {
+      alert(`Could not save: ${err.message}`);
+      save.disabled = false;
+    }
+  });
+
+  card.appendChild(form);
   return card;
 }
 

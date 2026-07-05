@@ -13,6 +13,7 @@
     <p><a href="/">← Back to recipes</a></p>
   </main>
 
+  <script src="share-queue.js"></script>
   <script>
     const API_BASE = "https://digital-cookbook-api.onrender.com"; // live backend (matches app.js)
     const statusEl = document.getElementById("status");
@@ -29,21 +30,37 @@
       return match ? match[0] : "";
     }
 
+    // Fire-and-forget: queue the URL + register a one-off Background Sync,
+    // then confirm instantly. The service worker POSTs (and retries) later —
+    // the user never waits out Render's cold start. Chromium/Android only.
+    async function queueShare(url) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg || !("sync" in reg)) return false;   // no SW / no Background Sync
+      await enqueueShare(url);
+      await reg.sync.register("share-import");
+      return true;
+    }
+
+    // Fallback (e.g. iOS Safari): the old synchronous POST — user waits.
+    async function importNow(url) {
+      statusEl.textContent = "Saving recipe… this can take a minute.";
+      const res = await fetch(`${API_BASE}/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) throw new Error(`Import failed (${res.status})`);
+    }
+
     async function run() {
       const url = extractUrl();
       if (!url) {
         statusEl.textContent = "No link found in the shared content.";
         return;
       }
-      statusEl.textContent = "Saving recipe…";
       try {
-        const res = await fetch(`${API_BASE}/import`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
-        });
-        if (!res.ok) throw new Error(`Import failed (${res.status})`);
-        statusEl.textContent = "Saved! Returning to your recipes…";
+        if (!(await queueShare(url))) await importNow(url);
+        statusEl.textContent = "Saved! It'll appear in your recipes shortly.";
         setTimeout(() => { window.location.href = "/"; }, 1200);
       } catch (err) {
         statusEl.textContent = `Could not save: ${err.message}`;

@@ -93,9 +93,10 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
 - [x] 4-3. Web Share Target: manifest `share_target` + `share.html` handler.
   **Proven end-to-end on a real Android phone** (share reel → recipe saved).
 - [ ] 4-4. iOS Shortcut: POSTs the shared link to `/import`.
-- [ ] 4-5. Fire-and-forget share: queue shares in IndexedDB + Background Sync —
+- [x] 4-5. Fire-and-forget share: queue shares in IndexedDB + Background Sync —
   instant confirmation, automatic retry. Decouples the user from Render's
-  cold-start wait (the reel-sharing UX we want).
+  cold-start wait. **Proven on a real Android phone.** After saving, the share
+  window closes itself (`window.close()`) so Android returns to Instagram.
 - [x] **Deployed (permanent, free):** backend on **Render**
   (`https://digital-cookbook-api.onrender.com`), frontend on **Cloudflare
   Workers** (`https://digital-cookbook.omergrinwald14.workers.dev`). Config is

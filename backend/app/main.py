@@ -46,11 +46,21 @@ class CategoryRequest(BaseModel):
     name: str
 
 
+class Ingredient(BaseModel):
+    """One ingredient — same shape the parser emits, so edits stay compatible."""
+    name: str
+    quantity: float | None = None
+    unit: str | None = None
+
+
 class RecipePatch(BaseModel):
     """Body for PATCH /recipes/{id} — any subset of fields to update."""
     is_favorite: bool | None = None
     is_up_next: bool | None = None
     category: str | None = None
+    title: str | None = None
+    ingredients: list[Ingredient] | None = None
+    steps: list[str] | None = None
 
 
 @app.get("/")
@@ -101,15 +111,25 @@ def get_recipes(
 
 @app.patch("/recipes/{recipe_id}")
 def patch_recipe(recipe_id: int, body: RecipePatch) -> dict:
-    """Update a recipe's collection flags and/or category; returns the row."""
-    if body.is_favorite is None and body.is_up_next is None and body.category is None:
+    """Update a recipe: flags, category, and/or edited title/ingredients/steps."""
+    # exclude_unset = only fields the client actually sent, so this 400 check
+    # doesn't need updating every time RecipePatch grows a field.
+    if not body.model_dump(exclude_unset=True):
         raise HTTPException(status_code=400, detail="No fields provided.")
+    if body.title is not None and not body.title.strip():
+        raise HTTPException(status_code=400, detail="Title cannot be empty.")
     try:
         return update_recipe(
             recipe_id,
             is_favorite=body.is_favorite,
             is_up_next=body.is_up_next,
             category=body.category,
+            title=body.title.strip() if body.title else None,
+            ingredients=(
+                [i.model_dump() for i in body.ingredients]
+                if body.ingredients is not None else None
+            ),
+            steps=body.steps,
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Recipe not found.")

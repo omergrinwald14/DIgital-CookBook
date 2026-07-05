@@ -230,6 +230,9 @@ def update_recipe(
     is_favorite: bool | None = None,
     is_up_next: bool | None = None,
     category: str | None = None,
+    title: str | None = None,
+    ingredients: list | None = None,
+    steps: list | None = None,
 ) -> dict:
     """Partial-update a recipe and return the updated row.
 
@@ -246,6 +249,12 @@ def update_recipe(
         updates["is_up_next"] = is_up_next
     if category is not None:
         updates["category_id"] = _category_id(client, category)
+    if title is not None:
+        updates["title"] = title
+    if ingredients is not None:
+        updates["ingredients"] = ingredients   # list -> stored as jsonb
+    if steps is not None:
+        updates["steps"] = steps               # list -> stored as jsonb
     if not updates:
         raise ValueError("no fields to update")
     result = client.table("recipes").update(updates).eq("id", recipe_id).execute()

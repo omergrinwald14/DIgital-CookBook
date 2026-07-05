@@ -127,8 +127,10 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
 - [x] 5-1. Search: client-side filter over the loaded list (title + ingredient
   names, case-insensitive) — instant, no backend call, composes with the
   active category chip.
-- [ ] 5-2. Recipe editing: edit title, ingredients, steps in-place.
-- [ ] 5-3. Family login (Supabase auth; protects the write endpoints).
+- [x] 5-2. Recipe editing: ✎ swaps the card for an in-place form — title input,
+  ingredients + steps as plain text lines (edited ingredients saved name-only).
+- [ ] 5-3. Login (Supabase auth) — **per-user recipes**: each user sees and
+  manages only their own cookbook (scope changed from "shared family data").
 
 ## Risks
 - **Instagram fetch is free but unofficial.** yt-dlp can break when Instagram changes;

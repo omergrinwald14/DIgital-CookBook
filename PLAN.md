@@ -123,7 +123,12 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
 > `@_synchronized`) — concurrent requests over its HTTP/2 connection raced into
 > WinError 10035 on Windows. Don't remove it.
 
-**Phase 5 — Sharing & polish:** family login, search, thumbnails, edit a recipe.
+**Phase 5 — Sharing & polish:**
+- [x] 5-1. Search: client-side filter over the loaded list (title + ingredient
+  names, case-insensitive) — instant, no backend call, composes with the
+  active category chip.
+- [ ] 5-2. Recipe editing: edit title, ingredients, steps in-place.
+- [ ] 5-3. Family login (Supabase auth; protects the write endpoints).
 
 ## Risks
 - **Instagram fetch is free but unofficial.** yt-dlp can break when Instagram changes;

@@ -61,12 +61,10 @@
       try {
         if (!(await queueShare(url))) await importNow(url);
         statusEl.textContent = "Saved! Heading back…";
-        // This window was opened by the share intent (no history), so the
-        // browser lets us close it — Android then returns to Instagram.
-        setTimeout(() => {
-          window.close();                                          // back to Instagram
-          setTimeout(() => { window.location.href = "/"; }, 400);  // fallback if the browser refused
-        }, 800);
+        // window.close() here is unreliable on installed PWAs: some phones kill
+        // the page but not the window, stranding a dead white screen. Navigating
+        // to the app is predictable everywhere; the queue banner confirms the share.
+        setTimeout(() => { window.location.replace("/"); }, 800);
       } catch (err) {
         statusEl.textContent = `Could not save: ${err.message}`;
       }

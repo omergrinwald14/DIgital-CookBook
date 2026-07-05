@@ -116,8 +116,8 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
   `PATCH /recipes/{id}` now also accepts `category`. `set_recipe_flags` →
   `update_recipe` (general partial update).
 - [x] "Unknown" filter chip: `?category=Unknown` → recipes with null category.
-- TODO: swap the placeholder SVG icon for square **PNGs** (192/512) — Chrome's OS
-  install icon wants raster squares (the SVG triggers a manifest warning).
+- [x] Swapped the placeholder SVG icon for square **PNGs** (192/512) — Chrome's OS
+  install icon wants raster squares (the SVG triggered a manifest warning).
 
 > Note: the shared Supabase client is serialized with a lock (`storage.py`
 > `@_synchronized`) — concurrent requests over its HTTP/2 connection raced into

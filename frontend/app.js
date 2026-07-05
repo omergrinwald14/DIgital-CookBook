@@ -7,6 +7,10 @@ const API_BASE = "https://digital-cookbook-api.onrender.com"; // live backend (R
 // read this so each card can list every category without its own fetch.
 let categoriesCache = [];
 
+// Last-fetched recipe list. Search filters this in the browser — no refetch,
+// so it stays instant even when the backend is cold.
+let recipesCache = [];
+
 // Track which chip is highlighted, so we can clear it when another is clicked.
 let activeChip = null;
 function setActiveChip(li) {
@@ -72,19 +76,39 @@ async function loadRecipes(category = null, collection = null) {
     const qs = params.toString();
     const res = await fetch(`${API_BASE}/recipes${qs ? `?${qs}` : ""}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const recipes = await res.json();
-    container.innerHTML = ""; // clear "Loading…"
-    if (recipes.length === 0) {
-      container.textContent = "No recipes here yet.";
-      return;
-    }
-    for (const recipe of recipes) {
-      container.appendChild(renderRecipeCard(recipe));
-    }
+    recipesCache = await res.json();
+    renderRecipes(applySearch(recipesCache));
   } catch (err) {
     container.textContent = `Could not load recipes: ${err.message}`;
   }
 }
+
+// Paint a list of recipes as cards (used by both fetch and search).
+function renderRecipes(recipes) {
+  const container = document.getElementById("recipe-list");
+  container.innerHTML = ""; // clear "Loading…" / previous cards
+  if (recipes.length === 0) {
+    container.textContent = "No recipes here yet.";
+    return;
+  }
+  for (const recipe of recipes) {
+    container.appendChild(renderRecipeCard(recipe));
+  }
+}
+
+// Narrow a recipe list by the search box: match title or ingredient names.
+function applySearch(recipes) {
+  const q = document.getElementById("search-box").value.trim().toLowerCase();
+  if (!q) return recipes;
+  return recipes.filter((r) =>
+    (r.title || "").toLowerCase().includes(q) ||
+    (r.ingredients || []).some((i) => (i.name || "").toLowerCase().includes(q))
+  );
+}
+
+// Re-filter on every keystroke — pure in-browser work, so it's instant.
+document.getElementById("search-box").addEventListener("input",
+  () => renderRecipes(applySearch(recipesCache)));
 
 // Format one ingredient: "320 g Spaghetti", "2 cloves Garlic", or just
 // "Olive oil" when quantity/unit are null. filter(Boolean) drops the blanks.

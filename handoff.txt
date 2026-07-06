@@ -1,0 +1,83 @@
+Digital CookBook — continuing. Read PLAN.md at the repo root first (source of truth).
+Work in baby steps: propose ONE small task, show code, I approve, we test.
+
+STATUS (2026-07-06, wrap-up; tree clean except this file, all committed & pushed
+through 0c23b12; every step below was smoke-tested locally via TestClient AND
+verified live after deploy):
+  - Backend → Render: https://digital-cookbook-api.onrender.com
+  - Frontend → Cloudflare Worker: https://digital-cookbook.omergrinwald14.workers.dev
+  - Push to main auto-deploys both (~2-4 min Render, ~1 min Cloudflare).
+  - DONE this session — 5-3 login (per-user cookbooks), steps a-d + f backend:
+    * (a) DDL run by user in Supabase dashboard: `owner text` on recipes +
+      categories, backfilled to omergrinwald14@gmail.com. SECOND DDL was
+      needed mid-step-b: global uniques replaced by composite —
+      (owner, name) on categories, (owner, source_url) on recipes
+      (the old categories_name_key broke guest "Pasta"; caught by smoke test).
+    * (b) Backend bfea444+89c7d0b: current_user() dependency reads X-User;
+      DEFAULT_OWNER = omergrinwald14@gmail.com when header missing/blank
+      (deliberate migration fallback — drop it only after e is done on ALL
+      iPhones). Every recipe+category query owner-scoped (.eq owner);
+      dedupe per (owner, source_url); _category_id per owner;
+      delete_category verifies ownership BEFORE detaching (LookupError→404);
+      PATCH/DELETE on someone else's row → 404/no-op.
+    * (c) Frontend 588f8ae: login gate on boot — email typed once →
+      localStorage key "cookbook-user", normalized trim+lowercase (backend
+      does NOT lowercase; only strips — possible polish later). apiFetch()
+      wrapper injects X-User into all calls; EXPLICIT options.headers win
+      over the stored user (drain path relies on this). Header badge shows
+      the email; clicking it = switch user (clears key, reloads).
+      User-verified in browser: login, per-user isolation, switch-user.
+    * (d) 6804c8a: share-queue entries carry `owner` (SWs can't read
+      localStorage — identity rides with the queued job; also fixes "queued
+      as A, drained as B"). share.html, sw.js sync drain, and app.js page
+      drain all send the entry's owner as X-User. SW_VERSION now
+      "v4 owner-in-queue" (BUMP ON EVERY sw.js CHANGE; check /sw-version).
+      User-verified on his own Android phone: share lands in his cookbook.
+      Entries queued before v4 have no owner → fall back to default (fine).
+    * (f backend) 1656d28: DELETE /users/{email} wipes a user's rows
+      (recipes first — FK), self-service only (X-User must match, else 403).
+      Used live to delete testuser@gmail.com (was 1 recipe). Frontend
+      delete-user button = later, user explicitly requested the feature.
+    * TikTok live import verified: family Android phone shared from TikTok
+      successfully, stays-in-app share UX confirmed working (closes two
+      OPEN items from last session).
+  - Smoke-test pattern that worked well (reuse it): scratch script in the
+    session scratchpad, TestClient against app.main (hits the LIVE DB — keep
+    reads read-only, clean up writes), run with PYTHONPATH=backend dir +
+    venv python -X utf8. Live checks: background PowerShell poll loop until
+    the new behavior answers (e.g. stranger→[] or 403), ~8 min budget.
+
+NEXT SESSION (in order):
+  1. 5-3e iOS Shortcut X-User header. User already has tap-by-tap Hebrew
+     instructions: קיצורי דרך → cookbook → ערוך → קבל תוכן מ-URL → expand →
+     כותרות → add key X-User, value = that phone's email (lowercase).
+     User was told what a header is (label:value on the request). Waiting
+     on him to be at the iPhone; then he tests one share → alert shows
+     recipe JSON, recipe appears only under that email.
+  2. 5-3g shareable Shortcut for his sister: long-press → שתף → iCloud
+     link → she installs. Email must be per-person: find the "import
+     question" option together (menu location varies by iOS version) so
+     install asks for her email; fallback = she edits the header value.
+  3. THEN consider: require X-User (drop DEFAULT_OWNER fallback) + lowercase
+     the header server-side; frontend delete-user button (5-3f frontend).
+  - User still owes results: family Android phone re-test after the login
+    deploy (each phone sees the login screen ONCE — enter that person's
+    email) + iOS share results.
+
+GOTCHAS (Windows/dev):
+  - py NOT python; backend venv at backend/.venv (Pillow there, dev-only).
+  - Local frontend test: py -m http.server 5500 -d frontend (8080 BLOCKED,
+    WinError 10013). Ctrl+Shift+R after JS/CSS edits.
+  - Scratch scripts: $env:PYTHONPATH=<backend dir> + python -X utf8
+    (cp1252 console chokes on Hebrew).
+  - Supabase client = module singleton in storage.py behind @_synchronized
+    (RLock) — don't remove the lock, don't recreate per request.
+  - DDL → Supabase dashboard SQL editor only (API key can't run it).
+  - Secrets: backend/.env locally (gitignored); env vars in Render for live.
+  - LLM is gemini-2.5-flash (NOT 2.0). Cloudflare strips .html
+    (/share.html 307→ /share, query params kept).
+  - Render free tier cold-starts ~50s after 15 min idle.
+  - Curl/scratch downloads → session scratchpad dir, NOT repo root.
+  - Keep handoff.txt untracked (not committed).
+  - Share UX is SETTLED (do not revisit): Android share → share.html →
+    lands in app; iOS → Shortcut alert, never leaves the source app.

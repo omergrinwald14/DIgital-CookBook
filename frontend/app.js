@@ -346,7 +346,7 @@ function renderRecipeCard(recipe) {
   if (recipe.source_url) {
     const link = document.createElement("a");
     link.href = recipe.source_url;
-    link.textContent = "Watch on Instagram";
+    link.textContent = "Watch Video";
     link.target = "_blank";   // open in a new tab
     link.rel = "noopener";    // don't expose our page to the opened tab
     link.addEventListener("click", (e) => e.stopPropagation()); // don't toggle

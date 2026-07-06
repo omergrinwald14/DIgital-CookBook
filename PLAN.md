@@ -140,6 +140,9 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
   - [ ] (e) iOS Shortcut sends the X-User header.
   - [x] (f) Delete a user (backend): `DELETE /users/{email}`, self-service
     only (X-User must match). Frontend button still TODO.
+  - [ ] (g) Shareable iOS Shortcut for family (sister first): iCloud link
+    install; per-person email in the X-User header — ideally via an import
+    question asked at install time.
 
 **Phase 6 — more sources (pulled forward, user request):**
 - [x] 6-a/b. TikTok import: `tiktok.py` (Apify clockworks~tiktok-scraper;

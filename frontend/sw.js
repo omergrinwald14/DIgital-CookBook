@@ -2,6 +2,7 @@
 importScripts("share-queue.js");
 
 const API_BASE = "https://digital-cookbook-api.onrender.com"; // matches app.js
+const SW_VERSION = "v2 share-204"; // bump on SW changes; readable at /sw-version
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
@@ -11,6 +12,12 @@ self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 // happy path falls through to share.html (the visible fallback page).
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+  // Diagnostic: the server has no /sw-version route, so only a controlling
+  // SW can answer it — whatever appears there is the active SW's version.
+  if (url.pathname === "/sw-version") {
+    event.respondWith(new Response(SW_VERSION));
+    return;
+  }
   const isShare =
     url.origin === self.location.origin &&
     (url.pathname === "/share.html" || url.pathname === "/share");

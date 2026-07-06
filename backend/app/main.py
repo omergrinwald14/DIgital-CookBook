@@ -5,7 +5,7 @@ phone's Share button) can use it. The heavy lifting lives in the imported
 modules; this file just wires them together behind endpoints.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -37,6 +37,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Identity (5-3, family-trust model): who is calling = the X-User header, an
+# email the frontend will store after a one-time login screen. No password —
+# the threat model is "typo", not "attacker". Upgrading to real auth later
+# only changes this one function.
+DEFAULT_OWNER = "omergrinwald14@gmail.com"
+
+
+def current_user(x_user: str = Header(default=DEFAULT_OWNER)) -> str:
+    """The requesting user, from the X-User header.
+
+    Missing/blank header falls back to DEFAULT_OWNER so clients that predate
+    login (current frontend, queued shares, iOS Shortcut) keep working during
+    the migration; the default goes away once steps c–e send the header.
+    """
+    return x_user.strip() or DEFAULT_OWNER
 
 
 class ImportRequest(BaseModel):
@@ -106,14 +123,18 @@ def remove_category(category_id: int) -> dict:
 
 @app.get("/recipes")
 def get_recipes(
-    category: str | None = None, collection: str | None = None
+    category: str | None = None,
+    collection: str | None = None,
+    user: str = Depends(current_user),
 ) -> list[dict]:
-    """List recipes, filtered by ?category=<name> or ?collection=favorites|up_next."""
-    return list_recipes(category, collection)
+    """List the caller's recipes, filtered by ?category= or ?collection=."""
+    return list_recipes(category, collection, owner=user)
 
 
 @app.patch("/recipes/{recipe_id}")
-def patch_recipe(recipe_id: int, body: RecipePatch) -> dict:
+def patch_recipe(
+    recipe_id: int, body: RecipePatch, user: str = Depends(current_user)
+) -> dict:
     """Update a recipe: flags, category, and/or edited title/ingredients/steps."""
     # exclude_unset = only fields the client actually sent, so this 400 check
     # doesn't need updating every time RecipePatch grows a field.
@@ -124,6 +145,7 @@ def patch_recipe(recipe_id: int, body: RecipePatch) -> dict:
     try:
         return update_recipe(
             recipe_id,
+            owner=user,
             is_favorite=body.is_favorite,
             is_up_next=body.is_up_next,
             category=body.category,
@@ -139,9 +161,9 @@ def patch_recipe(recipe_id: int, body: RecipePatch) -> dict:
 
 
 @app.delete("/recipes/{recipe_id}")
-def remove_recipe(recipe_id: int) -> dict:
-    """Delete a recipe by id."""
-    delete_recipe(recipe_id)
+def remove_recipe(recipe_id: int, user: str = Depends(current_user)) -> dict:
+    """Delete one of the caller's recipes by id."""
+    delete_recipe(recipe_id, owner=user)
     return {"status": "deleted", "id": recipe_id}
 
 
@@ -161,7 +183,7 @@ def _resolve_source(raw_url: str):
 
 
 @app.post("/import")
-def import_recipe(body: ImportRequest) -> dict:
+def import_recipe(body: ImportRequest, user: str = Depends(current_user)) -> dict:
     """Fetch an Instagram/TikTok post and return it as a structured recipe.
 
     Pipeline: URL -> fetch (Apify) -> parse_recipe (Gemini) -> recipe.
@@ -173,7 +195,7 @@ def import_recipe(body: ImportRequest) -> dict:
 
     # Early dedupe: a known URL returns the saved row immediately, skipping
     # the Apify fetch + Gemini parse (seconds + quota saved on every retry).
-    existing = find_recipe_by_url(url)
+    existing = find_recipe_by_url(url, owner=user)
     if existing:
         return existing
 
@@ -192,4 +214,4 @@ def import_recipe(body: ImportRequest) -> dict:
     }
 
     # Persist it and return the stored row (now with a real id + created_at).
-    return save_recipe(merged)
+    return save_recipe(merged, owner=user)

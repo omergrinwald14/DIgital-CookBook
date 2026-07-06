@@ -111,10 +111,14 @@ def delete_category(category_id: int) -> None:
 
 @_synchronized
 def list_recipes(
-    category: str | None = None, collection: str | None = None
+    category: str | None = None,
+    collection: str | None = None,
+    *,
+    owner: str,
 ) -> list[dict]:
-    """Return recipes (newest first), optionally filtered.
+    """Return one owner's recipes (newest first), optionally filtered.
 
+    `owner` scopes every query — users only ever see their own rows (5-3).
     `category` filters by category name (inner join); the special value
     "Unknown" filters to recipes with no category (category_id IS NULL).
     `collection` filters by a cross-cutting flag: "favorites" -> is_favorite,
@@ -127,7 +131,7 @@ def list_recipes(
         join = "categories!inner(name)"
     else:
         join = "categories(name)"
-    query = client.table("recipes").select(f"*, {join}").order(
+    query = client.table("recipes").select(f"*, {join}").eq("owner", owner).order(
         "created_at", desc=True
     )
     if category == "Unknown":
@@ -172,17 +176,20 @@ def store_thumbnail(source_url: str, thumbnail_url: str | None) -> str | None:
 
 
 @_synchronized
-def find_recipe_by_url(source_url: str) -> dict | None:
-    """Return the stored recipe for a source_url, or None if not saved yet.
+def find_recipe_by_url(source_url: str, *, owner: str) -> dict | None:
+    """Return OWNER's stored recipe for a source_url, or None if not saved yet.
 
-    Lets /import short-circuit on a known duplicate BEFORE paying for the
-    Apify fetch + Gemini parse (save_recipe also uses it as a last-line guard).
+    Dedupe is per user: two family members can each save the same reel into
+    their own cookbook. Lets /import short-circuit on a known duplicate BEFORE
+    paying for the Apify fetch + Gemini parse (save_recipe also uses it as a
+    last-line guard).
     """
     client = _client()
     result = (
         client.table("recipes")
         .select("*")
         .eq("source_url", source_url)
+        .eq("owner", owner)
         .limit(1)
         .execute()
     )
@@ -190,24 +197,25 @@ def find_recipe_by_url(source_url: str) -> dict | None:
 
 
 @_synchronized
-def save_recipe(recipe: dict) -> dict:
-    """Insert a parsed recipe and return the stored row (with its new id).
+def save_recipe(recipe: dict, *, owner: str) -> dict:
+    """Insert a parsed recipe for OWNER and return the stored row (new id).
 
-    Idempotent on source_url: importing the same reel twice (double-submit,
-    share + paste, or a Background Sync retry) returns the existing row instead
-    of creating a duplicate. source_url is NOT NULL and unique per post, so it's
-    our natural dedupe key; the module lock makes this check-then-insert atomic
+    Idempotent on (source_url, owner): importing the same reel twice
+    (double-submit, share + paste, or a Background Sync retry) returns the
+    existing row instead of creating a duplicate — but different owners each
+    get their own copy. The module lock makes this check-then-insert atomic
     (RLock, so the nested find_recipe_by_url call is fine).
 
     Args:
         recipe: dict with title, category (name), ingredients, steps,
                 source_url, thumbnail — the shape returned by POST /import.
+        owner:  the saving user's identity, stamped onto the row.
     """
     client = _client()
 
     source_url = recipe.get("source_url")
     if source_url:
-        existing = find_recipe_by_url(source_url)
+        existing = find_recipe_by_url(source_url, owner=owner)
         if existing:
             return existing          # already saved — return it, don't duplicate
 
@@ -218,6 +226,7 @@ def save_recipe(recipe: dict) -> dict:
         "thumbnail": recipe.get("thumbnail"),
         "ingredients": recipe.get("ingredients"),  # list -> stored as jsonb
         "steps": recipe.get("steps"),              # list -> stored as jsonb
+        "owner": owner,
     }
     result = client.table("recipes").insert(row).execute()
     return result.data[0]
@@ -227,6 +236,7 @@ def save_recipe(recipe: dict) -> dict:
 def update_recipe(
     recipe_id: int,
     *,
+    owner: str,
     is_favorite: bool | None = None,
     is_up_next: bool | None = None,
     category: str | None = None,
@@ -257,23 +267,30 @@ def update_recipe(
         updates["steps"] = steps               # list -> stored as jsonb
     if not updates:
         raise ValueError("no fields to update")
-    result = client.table("recipes").update(updates).eq("id", recipe_id).execute()
+    result = (
+        client.table("recipes")
+        .update(updates)
+        .eq("id", recipe_id)
+        .eq("owner", owner)
+        .execute()
+    )
     if not result.data:
         # LookupError (not HTTPException): storage stays HTTP-agnostic; the
-        # endpoint layer translates this into a 404.
+        # endpoint layer translates this into a 404. Someone else's recipe id
+        # takes this same path — a 404, not a hint that the row exists.
         raise LookupError(f"recipe {recipe_id} not found")
     return result.data[0]
 
 
 @_synchronized
-def delete_recipe(recipe_id: int) -> None:
-    """Delete a recipe by id.
+def delete_recipe(recipe_id: int, *, owner: str) -> None:
+    """Delete one of OWNER's recipes by id (someone else's id is a no-op).
 
     Recipes are leaf rows (nothing references them), so this is a straight
     DELETE — simpler than delete_category, which first detaches its recipes.
     """
     client = _client()
-    client.table("recipes").delete().eq("id", recipe_id).execute()
+    client.table("recipes").delete().eq("id", recipe_id).eq("owner", owner).execute()
 
 
 # Direct test:  py app/storage.py  — inserts one sample recipe.
@@ -291,6 +308,6 @@ if __name__ == "__main__":
         "source_url": "https://www.instagram.com/reel/DZ1ydoFKh1p/",
         "thumbnail": None,
     }
-    stored = save_recipe(sample)
+    stored = save_recipe(sample, owner="omergrinwald14@gmail.com")
     print("Saved row:")
     print(json.dumps(stored, indent=2, ensure_ascii=False))

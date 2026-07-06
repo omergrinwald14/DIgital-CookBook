@@ -2,43 +2,22 @@
 importScripts("share-queue.js");
 
 const API_BASE = "https://digital-cookbook-api.onrender.com"; // matches app.js
-const SW_VERSION = "v2 share-204"; // bump on SW changes; readable at /sw-version
+const SW_VERSION = "v3 no-intercept"; // bump on SW changes; readable at /sw-version
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
-// Web Share Target: intercept the share navigation, queue the link, and
-// answer 204 No Content. A 204 aborts the navigation, so our window never
-// opens and the user stays in Instagram/TikTok. Anything less than the
-// happy path falls through to share.html (the visible fallback page).
+// NOTE: do NOT intercept the share_target navigation here. Chrome opens the
+// PWA window for a share regardless of the SW's response (tested on-device;
+// see GoogleChrome/workbox#2557), so a 204 can't keep the user in the
+// sharing app — it only risks stranding a blank window. share.html handles
+// shares visibly and lands in the app.
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
   // Diagnostic: the server has no /sw-version route, so only a controlling
   // SW can answer it — whatever appears there is the active SW's version.
-  if (url.pathname === "/sw-version") {
+  if (new URL(event.request.url).pathname === "/sw-version") {
     event.respondWith(new Response(SW_VERSION));
-    return;
   }
-  const isShare =
-    url.origin === self.location.origin &&
-    (url.pathname === "/share.html" || url.pathname === "/share");
-  if (!isShare || event.request.mode !== "navigate") return;
-  event.respondWith(handleShare(event.request));
 });
-
-async function handleShare(request) {
-  try {
-    const params = new URL(request.url).searchParams;
-    const raw = `${params.get("url") || ""} ${params.get("text") || ""}`;
-    const link = (raw.match(/https?:\/\/\S+/i) || [])[0];
-    // No link, or no Background Sync to guarantee delivery → visible page.
-    if (!link || !("sync" in self.registration)) return fetch(request);
-    await enqueueShare(link);
-    await self.registration.sync.register("share-import");
-    return new Response(null, { status: 204 }); // stay in the sharing app
-  } catch {
-    return fetch(request); // any hiccup: fall back to share.html
-  }
-}
 
 // Fires when the browser decides we're online — even if the share page is
 // long closed. waitUntil keeps the SW alive until the queue is drained.

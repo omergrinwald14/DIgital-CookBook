@@ -60,7 +60,7 @@
       }
       try {
         if (!(await queueShare(url))) await importNow(url);
-        statusEl.textContent = "Saved! Heading back…";
+        statusEl.textContent = "Saved! Opening your cookbook…";
         // window.close() here is unreliable on installed PWAs: some phones kill
         // the page but not the window, stranding a dead white screen. Navigating
         // to the app is predictable everywhere; the queue banner confirms the share.

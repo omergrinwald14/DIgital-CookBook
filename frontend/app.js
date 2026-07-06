@@ -55,10 +55,24 @@ async function loadCategories() {
     // Special cross-category collections (no id -> no delete button).
     list.appendChild(makeChip("★ Favorites", () => loadRecipes(null, "favorites")));
     list.appendChild(makeChip("🔖 Up Next", () => loadRecipes(null, "up_next")));
-    list.appendChild(makeChip("Unknown", () => loadRecipes("Unknown")));
+    const unknown = makeChip("Unknown", () => loadRecipes("Unknown"));
+    unknown.classList.add("extra");
+    list.appendChild(unknown);
     for (const cat of categories) {
-      list.appendChild(makeChip(cat.name, () => loadRecipes(cat.name), cat.id));
+      const chip = makeChip(cat.name, () => loadRecipes(cat.name), cat.id);
+      chip.classList.add("extra");
+      list.appendChild(chip);
     }
+    // Progressive disclosure: chips past the three pinned ones hide behind
+    // a More/Less toggle so categories don't swallow the screen.
+    const toggle = document.createElement("li");
+    toggle.textContent = "More ▾";
+    toggle.addEventListener("click", () => {
+      const collapsed = list.classList.toggle("collapsed");
+      toggle.textContent = collapsed ? "More ▾" : "Less ▴";
+    });
+    list.appendChild(toggle);
+    list.classList.add("collapsed");
   } catch (err) {
     list.textContent = `Could not load categories: ${err.message}`;
   }

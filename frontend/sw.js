@@ -2,7 +2,7 @@
 importScripts("share-queue.js");
 
 const API_BASE = "https://digital-cookbook-api.onrender.com"; // matches app.js
-const SW_VERSION = "v3 no-intercept"; // bump on SW changes; readable at /sw-version
+const SW_VERSION = "v4 owner-in-queue"; // bump on SW changes; readable at /sw-version
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
@@ -29,9 +29,14 @@ self.addEventListener("sync", (event) => {
 
 async function drainShareQueue() {
   for (const share of await listShares()) {
+    // Identity comes from the queue entry — a SW has no localStorage, and
+    // the entry knows who queued it even if the app user changed since.
     const res = await fetch(`${API_BASE}/import`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(share.owner ? { "X-User": share.owner } : {}),
+      },
       body: JSON.stringify({ url: share.url }),
     });
     // 4xx = bad URL, retrying can't fix it — drop the entry.

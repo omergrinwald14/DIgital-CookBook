@@ -14,7 +14,9 @@ function apiFetch(path, options = {}) {
   const user = localStorage.getItem(USER_KEY);
   return fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: { ...(options.headers || {}), ...(user ? { "X-User": user } : {}) },
+    // Caller headers spread LAST so an explicit X-User (e.g. a queued
+    // share's original owner) beats the logged-in default.
+    headers: { ...(user ? { "X-User": user } : {}), ...(options.headers || {}) },
   });
 }
 
@@ -520,9 +522,14 @@ async function drainPendingShares() {
   for (const [i, share] of shares.entries()) {
     banner.textContent = `Saving ${shares.length} pending shared recipe(s)… (${i} done)`;
     try {
+      // Queued entries carry who shared them; that owner wins over whoever
+      // is logged in now (someone else may have opened the app since).
       const res = await apiFetch("/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(share.owner ? { "X-User": share.owner } : {}),
+        },
         body: JSON.stringify({ url: share.url }),
       });
       if (res.ok || (res.status >= 400 && res.status < 500)) {

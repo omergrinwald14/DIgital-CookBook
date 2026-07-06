@@ -18,6 +18,11 @@
     const API_BASE = "https://digital-cookbook-api.onrender.com"; // live backend (matches app.js)
     const statusEl = document.getElementById("status");
 
+    // Who is sharing — same localStorage identity app.js writes at login.
+    // Null if this phone never logged in; the backend then falls back to
+    // its default owner (migration behavior).
+    const OWNER = localStorage.getItem("cookbook-user");
+
     // Shared data arrives as query params (manifest share_target, GET method).
     const params = new URLSearchParams(window.location.search);
     const text = params.get("text") || "";
@@ -36,7 +41,7 @@
     async function queueShare(url) {
       const reg = await navigator.serviceWorker.getRegistration();
       if (!reg || !("sync" in reg)) return false;   // no SW / no Background Sync
-      await enqueueShare(url);
+      await enqueueShare(url, OWNER);  // owner rides with the queued job
       await reg.sync.register("share-import");
       return true;
     }
@@ -46,7 +51,10 @@
       statusEl.textContent = "Saving recipe… this can take a minute.";
       const res = await fetch(`${API_BASE}/import`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(OWNER ? { "X-User": OWNER } : {}),
+        },
         body: JSON.stringify({ url }),
       });
       if (!res.ok) throw new Error(`Import failed (${res.status})`);

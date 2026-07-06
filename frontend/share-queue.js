@@ -24,13 +24,15 @@ function idbDone(request) {
   });
 }
 
-// Add a shared URL to the queue (called by share.html).
-async function enqueueShare(url) {
+// Add a shared URL to the queue (called by share.html). `owner` rides with
+// the entry because the service worker that drains it can't read
+// localStorage — identity must travel with the job itself.
+async function enqueueShare(url, owner = null) {
   const db = await openShareDb();
   const id = await idbDone(
     db.transaction(SHARE_STORE, "readwrite")
       .objectStore(SHARE_STORE)
-      .add({ url, queuedAt: Date.now() })
+      .add({ url, owner, queuedAt: Date.now() })
   );
   db.close();
   return id;

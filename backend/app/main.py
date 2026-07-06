@@ -90,13 +90,13 @@ def health() -> dict:
 
 
 @app.get("/categories")
-def get_categories() -> list[dict]:
-    """List the fixed categories the frontend offers for browsing."""
-    return list_categories()
+def get_categories(user: str = Depends(current_user)) -> list[dict]:
+    """List the caller's categories for browsing."""
+    return list_categories(owner=user)
 
 
 @app.post("/categories", status_code=201)
-def add_category(body: CategoryRequest) -> dict:
+def add_category(body: CategoryRequest, user: str = Depends(current_user)) -> dict:
     """Create a category and return the stored row (id + name).
 
     Validation lives here at the endpoint: blank names are rejected with 400
@@ -107,7 +107,7 @@ def add_category(body: CategoryRequest) -> dict:
     if not name:
         raise HTTPException(status_code=400, detail="Category name cannot be empty.")
     try:
-        return create_category(name)
+        return create_category(name, owner=user)
     except ValueError:
         # 409 Conflict = "the resource already exists" — the standard answer
         # to a duplicate create, distinct from 400 (malformed input).
@@ -115,9 +115,12 @@ def add_category(body: CategoryRequest) -> dict:
 
 
 @app.delete("/categories/{category_id}")
-def remove_category(category_id: int) -> dict:
-    """Delete a category by id; its recipes fall back to Unknown."""
-    delete_category(category_id)
+def remove_category(category_id: int, user: str = Depends(current_user)) -> dict:
+    """Delete one of the caller's categories; its recipes fall back to Unknown."""
+    try:
+        delete_category(category_id, owner=user)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Category not found.")
     return {"status": "deleted", "id": category_id}
 
 
@@ -200,7 +203,7 @@ def import_recipe(body: ImportRequest, user: str = Depends(current_user)) -> dic
         return existing
 
     meta = fetch(url)
-    category_names = [c["name"] for c in list_categories()]
+    category_names = [c["name"] for c in list_categories(owner=user)]
     recipe = parse_recipe(meta["caption"], category_names)
 
     # Merge the two sources: parsed recipe fields + fetch metadata (link/thumb).

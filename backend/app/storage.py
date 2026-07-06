@@ -53,56 +53,82 @@ def _synchronized(fn):
     return wrapper
 
 
-def _category_id(client: Client, name: str | None) -> int | None:
-    """Map a category NAME to its id. Returns None for Unknown/no match.
+def _category_id(client: Client, name: str | None, owner: str) -> int | None:
+    """Map OWNER's category NAME to its id. Returns None for Unknown/no match.
 
+    Owner-scoped: two users can each have a "Pasta" with different ids.
     This enforces the "null -> Unknown" rule at the database boundary.
     """
     if not name or name == "Unknown":
         return None
-    result = client.table("categories").select("id").eq("name", name).limit(1).execute()
+    result = (
+        client.table("categories")
+        .select("id")
+        .eq("name", name)
+        .eq("owner", owner)
+        .limit(1)
+        .execute()
+    )
     return result.data[0]["id"] if result.data else None
 
 
 @_synchronized
-def list_categories() -> list[dict]:
-    """Return every category (id + name), sorted by name.
+def list_categories(*, owner: str) -> list[dict]:
+    """Return OWNER's categories (id + name), sorted by name.
 
     A plain SELECT — the read counterpart to save_recipe's INSERT.
     """
     client = _client()
-    result = client.table("categories").select("id, name").order("name").execute()
+    result = (
+        client.table("categories")
+        .select("id, name")
+        .eq("owner", owner)
+        .order("name")
+        .execute()
+    )
     return result.data
 
 
 @_synchronized
-def create_category(name: str) -> dict:
-    """Insert a new category and return the stored row (id + name).
+def create_category(name: str, *, owner: str) -> dict:
+    """Insert a new category for OWNER and return the stored row (id + name).
 
-    The write counterpart to list_categories. Duplicate names raise ValueError
-    (endpoint turns it into a 409); the module lock makes the check-then-insert
-    atomic, mirroring save_recipe's dedupe pattern.
+    The write counterpart to list_categories. Duplicates are per owner (each
+    user can have their own "Pasta"); they raise ValueError (endpoint turns it
+    into a 409). The module lock makes the check-then-insert atomic, mirroring
+    save_recipe's dedupe pattern.
     """
     client = _client()
-    existing = (
-        client.table("categories").select("id").eq("name", name).limit(1).execute()
-    )
-    if existing.data:
+    if _category_id(client, name, owner) is not None:
         raise ValueError(f"category {name!r} already exists")
-    result = client.table("categories").insert({"name": name}).execute()
+    result = (
+        client.table("categories").insert({"name": name, "owner": owner}).execute()
+    )
     return result.data[0]
 
 
 @_synchronized
-def delete_category(category_id: int) -> None:
-    """Delete a category; its recipes fall back to Unknown (category_id null).
+def delete_category(category_id: int, *, owner: str) -> None:
+    """Delete one of OWNER's categories; its recipes fall back to Unknown.
 
-    Two ordered steps: first detach recipes (set category_id = null) so the
+    Ownership is checked FIRST — before any mutation — so a wrong/foreign id
+    can't detach another user's recipes (LookupError -> 404 at the endpoint).
+    Then two ordered steps: detach recipes (set category_id = null) so the
     foreign key won't block the delete, then remove the category row. This
     enforces the plan's "null -> Unknown" rule instead of cascading deletes
     (which destroy recipes) or failing on the FK constraint.
     """
     client = _client()
+    owned = (
+        client.table("categories")
+        .select("id")
+        .eq("id", category_id)
+        .eq("owner", owner)
+        .limit(1)
+        .execute()
+    )
+    if not owned.data:
+        raise LookupError(f"category {category_id} not found")
     client.table("recipes").update({"category_id": None}).eq(
         "category_id", category_id
     ).execute()
@@ -221,7 +247,7 @@ def save_recipe(recipe: dict, *, owner: str) -> dict:
 
     row = {
         "title": recipe.get("title"),
-        "category_id": _category_id(client, recipe.get("category")),
+        "category_id": _category_id(client, recipe.get("category"), owner),
         "source_url": recipe.get("source_url"),
         "thumbnail": recipe.get("thumbnail"),
         "ingredients": recipe.get("ingredients"),  # list -> stored as jsonb
@@ -258,7 +284,7 @@ def update_recipe(
     if is_up_next is not None:
         updates["is_up_next"] = is_up_next
     if category is not None:
-        updates["category_id"] = _category_id(client, category)
+        updates["category_id"] = _category_id(client, category, owner)
     if title is not None:
         updates["title"] = title
     if ingredients is not None:

@@ -12,7 +12,22 @@
   <meta name="apple-mobile-web-app-title" content="CookBook">
 </head>
 <body>
-  <header><h1>Digital CookBook</h1></header>
+  <header>
+    <h1>Digital CookBook</h1>
+    <button id="user-badge" hidden title="Switch user"></button>
+  </header>
+
+  <!-- Login gate (5-3c): shown only when localStorage has no identity yet.
+       An email typed once — the family-trust stand-in for real auth. -->
+  <div id="login-screen" hidden>
+    <form id="login-form">
+      <h2>Who's cooking?</h2>
+      <p>Enter your email — your cookbook lives under it.</p>
+      <input id="login-email" type="email" placeholder="you@example.com" required />
+      <button type="submit">Open my cookbook</button>
+    </form>
+  </div>
+
   <main>
     <section id="import">
       <h2>Add a recipe</h2>

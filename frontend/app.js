@@ -3,6 +3,21 @@
 
 const API_BASE = "https://digital-cookbook-api.onrender.com"; // live backend (Render)
 
+// Identity (5-3c): the user's email, typed once on the login screen and kept
+// in localStorage. Family-trust model — the backend trusts the X-User header.
+const USER_KEY = "cookbook-user";
+
+// One seam for every backend call: inject the X-User header here, so all
+// requests are identified the same way and a future auth upgrade (real
+// tokens) only touches this function.
+function apiFetch(path, options = {}) {
+  const user = localStorage.getItem(USER_KEY);
+  return fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { ...(options.headers || {}), ...(user ? { "X-User": user } : {}) },
+  });
+}
+
 // Cache of categories (id+name), refreshed by loadCategories(). Card pickers
 // read this so each card can list every category without its own fetch.
 let categoriesCache = [];
@@ -44,7 +59,7 @@ function makeChip(label, onClick, categoryId = null) {
 async function loadCategories() {
   const list = document.getElementById("category-list");
   try {
-    const res = await fetch(`${API_BASE}/categories`);
+    const res = await apiFetch("/categories");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const categories = await res.json();
     categoriesCache = categories; // keep the cache in sync for card pickers
@@ -88,7 +103,7 @@ async function loadRecipes(category = null, collection = null) {
     if (category) params.set("category", category);
     if (collection) params.set("collection", collection);
     const qs = params.toString();
-    const res = await fetch(`${API_BASE}/recipes${qs ? `?${qs}` : ""}`);
+    const res = await apiFetch(`/recipes${qs ? `?${qs}` : ""}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     recipesCache = await res.json();
     renderRecipes(applySearch(recipesCache));
@@ -188,7 +203,7 @@ function makeFlagToggle(recipe, key, onGlyph, offGlyph, label) {
     e.stopPropagation();                  // don't expand the card
     btn.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/recipes/${recipe.id}`, {
+      const res = await apiFetch(`/recipes/${recipe.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: !recipe[key] }),
@@ -238,7 +253,7 @@ function makeCategoryPicker(recipe) {
       // Only create it if it's genuinely new (avoids duplicate-insert errors).
       if (!categoriesCache.some((c) => c.name === name)) {
         try {
-          const res = await fetch(`${API_BASE}/categories`, {
+          const res = await apiFetch("/categories", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name }),
@@ -254,7 +269,7 @@ function makeCategoryPicker(recipe) {
       category = name;
     }
     try {
-      const res = await fetch(`${API_BASE}/recipes/${recipe.id}`, {
+      const res = await apiFetch(`/recipes/${recipe.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category }),
@@ -285,7 +300,7 @@ function renderRecipeCard(recipe) {
     if (!confirm(`Delete "${recipe.title || "this recipe"}"? This can't be undone.`)) return;
     del.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/recipes/${recipe.id}`, { method: "DELETE" });
+      const res = await apiFetch(`/recipes/${recipe.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       card.remove();                           // drop just this card from the view
     } catch (err) {
@@ -404,7 +419,7 @@ function renderEditForm(recipe) {
     if (!body.title) { alert("Title cannot be empty."); return; }
     save.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/recipes/${recipe.id}`, {
+      const res = await apiFetch(`/recipes/${recipe.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -429,7 +444,7 @@ async function addCategory(event) {
   const name = input.value.trim();
   if (!name) return;                // ignore empty; backend also guards (400)
   try {
-    const res = await fetch(`${API_BASE}/categories`, {
+    const res = await apiFetch("/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
@@ -457,7 +472,7 @@ async function importRecipe(event) {
   status.hidden = false;
   status.textContent = "Importing… this can take 10–30s.";
   try {
-    const res = await fetch(`${API_BASE}/import`, {
+    const res = await apiFetch("/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
@@ -480,7 +495,7 @@ document.getElementById("import-form").addEventListener("submit", importRecipe);
 async function deleteCategory(id, label) {
   if (!confirm(`Delete "${label}"? Its recipes will move to Unknown.`)) return;
   try {
-    const res = await fetch(`${API_BASE}/categories/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`/categories/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     await loadCategories();   // repaint chips without the deleted one
     await loadRecipes();      // recipes may have moved to Unknown
@@ -505,7 +520,7 @@ async function drainPendingShares() {
   for (const [i, share] of shares.entries()) {
     banner.textContent = `Saving ${shares.length} pending shared recipe(s)… (${i} done)`;
     try {
-      const res = await fetch(`${API_BASE}/import`, {
+      const res = await apiFetch("/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: share.url }),
@@ -523,9 +538,48 @@ async function drainPendingShares() {
   if (saved) await loadRecipes();
 }
 
-loadCategories().then(loadRecipes).then(drainPendingShares);
-// categories first so card pickers have the cache; recipes render before the
-// (possibly slow, cold-start) queue drain so the app is usable immediately
+// Boot: categories first so card pickers have the cache; recipes render
+// before the (possibly slow, cold-start) queue drain so the app is usable
+// immediately.
+function boot() {
+  loadCategories().then(loadRecipes).then(drainPendingShares);
+}
+
+// Login gate (5-3c): with a stored identity, boot straight in; without one,
+// show the login screen and boot after the email is saved.
+const loginScreen = document.getElementById("login-screen");
+const userBadge = document.getElementById("user-badge");
+
+function showUserBadge(email) {
+  userBadge.textContent = email;
+  userBadge.hidden = false;
+}
+
+// The badge doubles as "switch user": clear the identity and start over.
+userBadge.addEventListener("click", () => {
+  if (!confirm("Switch user? You'll be asked for an email again.")) return;
+  localStorage.removeItem(USER_KEY);
+  location.reload();
+});
+
+document.getElementById("login-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  // Normalize (trim + lowercase) so "Omer@x" and "omer@x" are one cookbook.
+  const email = document.getElementById("login-email").value.trim().toLowerCase();
+  if (!email) return;
+  localStorage.setItem(USER_KEY, email);
+  loginScreen.hidden = true;
+  showUserBadge(email);
+  boot();
+});
+
+const storedUser = localStorage.getItem(USER_KEY);
+if (storedUser) {
+  showUserBadge(storedUser);
+  boot();
+} else {
+  loginScreen.hidden = false;
+}
 
 // Register the service worker (enables PWA install + Web Share Target).
 if ("serviceWorker" in navigator) {

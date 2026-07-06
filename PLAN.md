@@ -129,8 +129,17 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
   active category chip.
 - [x] 5-2. Recipe editing: ✎ swaps the card for an in-place form — title input,
   ingredients + steps as plain text lines (edited ingredients saved name-only).
-- [ ] 5-3. Login (Supabase auth) — **per-user recipes**: each user sees and
-  manages only their own cookbook (scope changed from "shared family data").
+- [ ] 5-3. Login — **per-user recipes**: each user sees and manages only their
+  own cookbook (scope changed from "shared family data"). Identity = email
+  typed once, sent as `X-User` (family-trust; upgrade seam to real auth later).
+  - [x] (a) DDL: `owner` text column on recipes + categories; composite
+    uniques `(owner, name)` / `(owner, source_url)`.
+  - [x] (b) Backend: `X-User` header filters + stamps all recipe/category rows.
+  - [x] (c) Frontend: login screen → localStorage → header on every fetch.
+  - [ ] (d) share.html + share-queue.js carry the owner in queued POSTs.
+  - [ ] (e) iOS Shortcut sends the X-User header.
+  - [ ] (f) Delete a user: backend endpoint wiping all of a user's rows
+    (recipes + categories); frontend button later.
 
 **Phase 6 — more sources (pulled forward, user request):**
 - [x] 6-a/b. TikTok import: `tiktok.py` (Apify clockworks~tiktok-scraper;

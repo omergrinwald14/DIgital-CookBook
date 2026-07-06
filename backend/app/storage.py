@@ -309,6 +309,20 @@ def update_recipe(
 
 
 @_synchronized
+def delete_user(owner: str) -> dict:
+    """Erase every row belonging to OWNER; returns counts per table.
+
+    Recipes go first — they reference categories via the FK, so deleting
+    categories first would be blocked. Thumbnails in Storage are left behind
+    as harmless orphans (stable names, overwritten on any re-import).
+    """
+    client = _client()
+    recipes = client.table("recipes").delete().eq("owner", owner).execute()
+    categories = client.table("categories").delete().eq("owner", owner).execute()
+    return {"recipes": len(recipes.data), "categories": len(categories.data)}
+
+
+@_synchronized
 def delete_recipe(recipe_id: int, *, owner: str) -> None:
     """Delete one of OWNER's recipes by id (someone else's id is a no-op).
 

@@ -18,6 +18,7 @@ from app.storage import (
     create_category,
     delete_category,
     delete_recipe,
+    delete_user,
     find_recipe_by_url,
     list_categories,
     list_recipes,
@@ -168,6 +169,22 @@ def remove_recipe(recipe_id: int, user: str = Depends(current_user)) -> dict:
     """Delete one of the caller's recipes by id."""
     delete_recipe(recipe_id, owner=user)
     return {"status": "deleted", "id": recipe_id}
+
+
+@app.delete("/users/{email}")
+def remove_user(email: str, user: str = Depends(current_user)) -> dict:
+    """Delete a user = erase all their rows (5-3f; backend-only for now).
+
+    Self-service only: X-User must match the email being deleted, so one
+    family member can't wipe another's cookbook (403 otherwise).
+    """
+    email = email.strip().lower()
+    if email != user.lower():
+        raise HTTPException(
+            status_code=403, detail="You can only delete your own data."
+        )
+    counts = delete_user(email)
+    return {"status": "deleted", "user": email, **counts}
 
 
 def _resolve_source(raw_url: str):

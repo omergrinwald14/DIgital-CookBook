@@ -138,8 +138,8 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
   - [x] (c) Frontend: login screen → localStorage → header on every fetch.
   - [ ] (d) share.html + share-queue.js carry the owner in queued POSTs.
   - [ ] (e) iOS Shortcut sends the X-User header.
-  - [ ] (f) Delete a user: backend endpoint wiping all of a user's rows
-    (recipes + categories); frontend button later.
+  - [x] (f) Delete a user (backend): `DELETE /users/{email}`, self-service
+    only (X-User must match). Frontend button still TODO.
 
 **Phase 6 — more sources (pulled forward, user request):**
 - [x] 6-a/b. TikTok import: `tiktok.py` (Apify clockworks~tiktok-scraper;

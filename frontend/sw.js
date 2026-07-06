@@ -5,9 +5,33 @@ const API_BASE = "https://digital-cookbook-api.onrender.com"; // matches app.js
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
-self.addEventListener("fetch", () => {
-  // Pass-through (its mere presence satisfies the install criteria).
+// Web Share Target: intercept the share navigation, queue the link, and
+// answer 204 No Content. A 204 aborts the navigation, so our window never
+// opens and the user stays in Instagram/TikTok. Anything less than the
+// happy path falls through to share.html (the visible fallback page).
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  const isShare =
+    url.origin === self.location.origin &&
+    (url.pathname === "/share.html" || url.pathname === "/share");
+  if (!isShare || event.request.mode !== "navigate") return;
+  event.respondWith(handleShare(event.request));
 });
+
+async function handleShare(request) {
+  try {
+    const params = new URL(request.url).searchParams;
+    const raw = `${params.get("url") || ""} ${params.get("text") || ""}`;
+    const link = (raw.match(/https?:\/\/\S+/i) || [])[0];
+    // No link, or no Background Sync to guarantee delivery → visible page.
+    if (!link || !("sync" in self.registration)) return fetch(request);
+    await enqueueShare(link);
+    await self.registration.sync.register("share-import");
+    return new Response(null, { status: 204 }); // stay in the sharing app
+  } catch {
+    return fetch(request); // any hiccup: fall back to share.html
+  }
+}
 
 // Fires when the browser decides we're online — even if the share page is
 // long closed. waitUntil keeps the SW alive until the queue is drained.

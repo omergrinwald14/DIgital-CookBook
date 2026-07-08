@@ -136,8 +136,8 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
     uniques `(owner, name)` / `(owner, source_url)`.
   - [x] (b) Backend: `X-User` header filters + stamps all recipe/category rows.
   - [x] (c) Frontend: login screen → localStorage → header on every fetch.
-  - [ ] (d) share.html + share-queue.js carry the owner in queued POSTs.
-  - [ ] (e) iOS Shortcut sends the X-User header.
+  - [x] (d) share.html + share-queue.js carry the owner in queued POSTs.
+  - [x] (e) iOS Shortcut sends the X-User header. **Proven on the iPhone.**
   - [x] (f) Delete a user (backend): `DELETE /users/{email}`, self-service
     only (X-User must match). Frontend button still TODO.
   - [ ] (g) Shareable iOS Shortcut for family (sister first): iCloud link
@@ -152,6 +152,20 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
 - [x] Share-queue reliability fix: the app drains the IndexedDB share queue on
   every open (visible banner) — Background Sync alone stranded shares after
   ~3 failed retries against Render cold starts.
+
+## TODO backlog — pick a task when time is convenient
+> Not scheduled; grab one when there's a free moment. New "later" items land here.
+- [ ] **Cold-start drill (one Android):** pause the cron-job.org keep-warm job →
+  wait ~20 min (server sleeps) → share a video → do **not** open the app →
+  recipe should land within ~3 min (SW v5 in-event retries) → unpause the job.
+- [ ] **Full share matrix (all devices):** on every family device (Omer Android,
+  family Android, Omer iPhone, sister's iPhone once 5-3g is done) share one video
+  warm + one cold; verify each lands under the right owner; on Androids confirm
+  `/sw-version` = `v5 cold-start-retry` first.
+- [ ] 5-3g — shareable iOS Shortcut for sister (iCloud link; per-person email).
+- [ ] 5-3f frontend — delete-user button in the app.
+- [ ] Require `X-User`: drop the `DEFAULT_OWNER` fallback + lowercase the header
+  server-side (only after every phone has logged in / Shortcut updated).
 
 ## Risks
 - **Instagram fetch is free but unofficial.** yt-dlp can break when Instagram changes;

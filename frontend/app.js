@@ -588,6 +588,36 @@ if (storedUser) {
   loginScreen.hidden = false;
 }
 
+// Install guide: auto-open the tab matching the visitor's phone; the tab
+// pills let them switch anyway (covers iPads that report a Mac userAgent).
+const installGuide = document.getElementById("install-guide");
+
+function detectPlatform() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) ? "ios" : "android";
+}
+
+function selectGuideTab(platform) {
+  document.getElementById("guide-android").hidden = platform !== "android";
+  document.getElementById("guide-ios").hidden = platform !== "ios";
+  document.querySelectorAll(".guide-tab").forEach((tab) =>
+    tab.classList.toggle("active", tab.dataset.platform === platform)
+  );
+}
+
+function openInstallGuide() {
+  selectGuideTab(detectPlatform());
+  installGuide.hidden = false;
+}
+
+document.getElementById("install-help").addEventListener("click", openInstallGuide);
+document.getElementById("login-install-help").addEventListener("click", openInstallGuide);
+document.getElementById("install-guide-close").addEventListener("click", () => {
+  installGuide.hidden = true;
+});
+document.querySelectorAll(".guide-tab").forEach((tab) =>
+  tab.addEventListener("click", () => selectGuideTab(tab.dataset.platform))
+);
+
 // Register the service worker (enables PWA install + Web Share Target).
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch((err) =>

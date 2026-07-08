@@ -14,6 +14,7 @@
 <body>
   <header>
     <h1>Digital CookBook</h1>
+    <button id="install-help">How to install</button>
     <button id="user-badge" hidden title="Switch user"></button>
   </header>
 
@@ -25,7 +26,61 @@
       <p>Enter your email — your cookbook lives under it.</p>
       <input id="login-email" type="email" placeholder="you@example.com" required />
       <button type="submit">Open my cookbook</button>
+      <!-- type="button" so it doesn't submit the form. -->
+      <button type="button" id="login-install-help">How do I install this app?</button>
     </form>
+  </div>
+
+  <!-- Install guide: full-screen overlay with an Android and an iPhone tab.
+       Opened from the header (and later the login screen); JS flips `hidden`. -->
+  <div id="install-guide" hidden>
+    <div class="guide-inner">
+      <div class="guide-top">
+        <h2>Get the app on your phone</h2>
+        <button id="install-guide-close" title="Back">←</button>
+      </div>
+      <div class="guide-tabs">
+        <button class="guide-tab" data-platform="android">Android</button>
+        <button class="guide-tab" data-platform="ios">iPhone</button>
+      </div>
+      <section id="guide-android">
+        <h3>1. Install the app</h3>
+        <ol>
+          <li>Open this site in <strong>Chrome</strong> (you're probably here already).</li>
+          <li>Tap the <strong>⋮</strong> menu in the top-right corner.</li>
+          <li>Tap <strong>Add to Home screen</strong> (sometimes called <strong>Install app</strong>).</li>
+          <li>Confirm — the CookBook icon appears on your home screen. Open it from there like any app.</li>
+        </ol>
+        <h3>2. Save recipes from other apps</h3>
+        <ol>
+          <li>Found a recipe in Instagram, TikTok or Chrome? Tap <strong>Share</strong>.</li>
+          <li>Pick <strong>Digital CookBook</strong> from the share list.</li>
+          <li>Done — the recipe imports into your cookbook by itself. No internet or slow server? It's queued and sent automatically later.</li>
+        </ol>
+      </section>
+      <section id="guide-ios" hidden>
+        <h3>1. Install the app</h3>
+        <ol>
+          <li>Open this site in <strong>Safari</strong>.</li>
+          <li>Tap the <strong>Share</strong> button (the square with an arrow, at the bottom).</li>
+          <li>Scroll down and tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+          <li>The CookBook icon appears on your home screen. Open it from there like any app.</li>
+        </ol>
+        <h3>2. One-time setup for saving recipes</h3>
+        <ol>
+          <li>Tap this link:
+            <a href="https://www.icloud.com/shortcuts/6d6c035ed63d45f48d51e3923ac785c0" target="_blank" rel="noopener">Get the CookBook shortcut</a>.</li>
+          <li>Tap <strong>Add Shortcut</strong>.</li>
+          <li>When asked for an email, enter the <strong>same email you use in this app</strong> — that's how recipes reach your cookbook.</li>
+        </ol>
+        <h3>3. Save recipes from other apps</h3>
+        <ol>
+          <li>Found a recipe in Instagram, TikTok or Safari? Tap <strong>Share</strong>.</li>
+          <li>Pick the <strong>CookBook</strong> shortcut from the list.</li>
+          <li>Wait for the confirmation alert — you never leave the app you're in.</li>
+        </ol>
+      </section>
+    </div>
   </div>
 
   <main>

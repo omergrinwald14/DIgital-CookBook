@@ -162,7 +162,10 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
   family Android, Omer iPhone, sister's iPhone once 5-3g is done) share one video
   warm + one cold; verify each lands under the right owner; on Androids confirm
   `/sw-version` = `v5 cold-start-retry` first.
-- [ ] 5-3g — shareable iOS Shortcut for sister (iCloud link; per-person email).
+- [x] 5-3g — shareable iOS Shortcut for sister (iCloud link; per-person email).
+  DONE 2026-07-08: tested iCloud link is now published inside the in-app
+  install guide (d9b7a9d) — header "How to install" + login-screen link,
+  Android/iPhone tabs with platform auto-detect. Sister self-installs from it.
 - [ ] 5-3f frontend — delete-user button in the app.
 - [ ] Require `X-User`: drop the `DEFAULT_OWNER` fallback + lowercase the header
   server-side (only after every phone has logged in / Shortcut updated).

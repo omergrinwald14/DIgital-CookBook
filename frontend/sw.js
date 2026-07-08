@@ -2,7 +2,7 @@
 importScripts("share-queue.js");
 
 const API_BASE = "https://digital-cookbook-api.onrender.com"; // matches app.js
-const SW_VERSION = "v4 owner-in-queue"; // bump on SW changes; readable at /sw-version
+const SW_VERSION = "v5 cold-start-retry"; // bump on SW changes; readable at /sw-version
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
@@ -27,26 +27,40 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+// Waits between tries inside ONE sync event: the first (failed) try wakes a
+// cold Render server (~50s), the later tries land once it's up. waitUntil
+// keeps the SW alive (~5 min budget), so sleeping here is legal.
+const RETRY_DELAYS_MS = [0, 30000, 45000];
+
+function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
 async function drainShareQueue() {
   for (const share of await listShares()) {
-    // Identity comes from the queue entry — a SW has no localStorage, and
-    // the entry knows who queued it even if the app user changed since.
-    const res = await fetch(`${API_BASE}/import`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(share.owner ? { "X-User": share.owner } : {}),
-      },
-      body: JSON.stringify({ url: share.url }),
-    });
-    // 4xx = bad URL, retrying can't fix it — drop the entry.
-    // ok = saved (idempotent, so a re-run is harmless) — drop it too.
-    // 5xx = transient server trouble — throw; the browser re-syncs later.
-    if (res.ok || (res.status >= 400 && res.status < 500)) {
-      await removeShare(share.id);
-    } else {
-      throw new Error(`import failed: HTTP ${res.status}`);
+    let delivered = false;
+    for (const delay of RETRY_DELAYS_MS) {
+      if (delay) await sleep(delay); // give a cold server time to wake
+      try {
+        // Identity comes from the queue entry — a SW has no localStorage, and
+        // the entry knows who queued it even if the app user changed since.
+        const res = await fetch(`${API_BASE}/import`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(share.owner ? { "X-User": share.owner } : {}),
+          },
+          body: JSON.stringify({ url: share.url }),
+        });
+        // 4xx = bad URL, retrying can't fix it — drop the entry.
+        // ok = saved (idempotent, so a re-run is harmless) — drop it too.
+        // 5xx = transient server trouble — wait, then retry.
+        if (res.ok || (res.status >= 400 && res.status < 500)) {
+          await removeShare(share.id);
+          delivered = true;
+          break;
+        }
+      } catch { /* network error — wait, then retry */ }
     }
+    // Still failing after all tries: throw so the browser re-syncs later.
+    if (!delivered) throw new Error("import still failing after retries");
   }
-  // A network error (fetch rejects) also throws out of here — same retry path.
 }

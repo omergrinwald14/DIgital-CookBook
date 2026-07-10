@@ -164,7 +164,11 @@ the Supabase dashboard SQL editor only.
 - [x] 7-2. API rename: /categories→/tags, ?tag=, "Unknown"→"Untagged".
 - [x] 7-3. ⚠ Cutover DDL: rename table categories→tags + column category_id→tag_id; `.table("tags")` commit (brief downtime).
 - [x] 7-4. DDL: recipe_tags join table (PK recipe_id+tag_id, cascades) + backfill from tag_id (20 = 20 verified).
-- [ ] 7-5. Dual-write: save/update also write recipe_tags (reads unchanged).
+- [x] 7-5. Dual-write: save/update also write recipe_tags (reads unchanged).
+  Gotcha found in 7-4: creating recipe_tags made the `tags(name)` embed
+  ambiguous (PGRST201, two join paths) and broke GET /recipes until the
+  embed named its FK path explicitly — new tables near old embeds are NOT
+  automatically zero-impact.
 - [ ] 7-6. Switch reads: /recipes embeds a tags list from recipe_tags; "Untagged" = no join rows.
 - [ ] 7-7. PATCH /recipes accepts `tags: [names]` (full replacement).
 - [ ] 7-8. Card UI: tag chips with × + a "+" picker (replaces the dropdown).

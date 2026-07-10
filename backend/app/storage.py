@@ -154,10 +154,13 @@ def list_recipes(
     client = _client()
     # Inner join only when filtering by a real tag; left join otherwise so
     # Untagged (null-tag) recipes still appear.
+    # recipe_tags gives PostgREST a SECOND path from recipes to tags, so the
+    # embed must name the FK explicitly or it 400s as ambiguous (PGRST201).
+    # The constraint kept its pre-rename name; this embed dies in 7-6 anyway.
     if tag and tag != "Untagged":
-        join = "tags!inner(name)"
+        join = "tags!recipes_category_id_fkey!inner(name)"
     else:
-        join = "tags(name)"
+        join = "tags!recipes_category_id_fkey(name)"
     query = client.table("recipes").select(f"*, {join}").eq("owner", owner).order(
         "created_at", desc=True
     )
@@ -256,7 +259,14 @@ def save_recipe(recipe: dict, *, owner: str) -> dict:
         "owner": owner,
     }
     result = client.table("recipes").insert(row).execute()
-    return result.data[0]
+    stored = result.data[0]
+    # Dual-write (7-5): mirror the tag into recipe_tags so the join table
+    # stays in sync while reads still come from recipes.tag_id.
+    if stored.get("tag_id") is not None:
+        client.table("recipe_tags").insert(
+            {"recipe_id": stored["id"], "tag_id": stored["tag_id"]}
+        ).execute()
+    return stored
 
 
 @_synchronized
@@ -306,6 +316,14 @@ def update_recipe(
         # endpoint layer translates this into a 404. Someone else's recipe id
         # takes this same path — a 404, not a hint that the row exists.
         raise LookupError(f"recipe {recipe_id} not found")
+    # Dual-write (7-5): a tag change also replaces this recipe's join rows.
+    # Runs only after the owner-scoped update above proved ownership.
+    if tag is not None:
+        client.table("recipe_tags").delete().eq("recipe_id", recipe_id).execute()
+        if updates["tag_id"] is not None:
+            client.table("recipe_tags").insert(
+                {"recipe_id": recipe_id, "tag_id": updates["tag_id"]}
+            ).execute()
     return result.data[0]
 
 

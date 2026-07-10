@@ -222,73 +222,123 @@ function makeFlagToggle(recipe, key, onGlyph, offGlyph, label) {
   return btn;
 }
 
-// Build the tag picker for a card: a <select> of Untagged + every
-// tag + a "new tag" sentinel. Changing it PATCHes the recipe;
-// the "new" option creates the tag first, then assigns it.
-function makeTagPicker(recipe) {
-  const select = document.createElement("select");
-  select.className = "recipe-category";
-  select.addEventListener("click", (e) => e.stopPropagation()); // don't toggle card
+// Render a card's tags as small chips (× removes one) plus a "+" button
+// that swaps into a select for adding one. Every change PATCHes the FULL
+// list (replacement semantics) and rebuilds this widget from the response.
+function renderTagChips(recipe) {
+  const wrap = document.createElement("div");
+  wrap.className = "recipe-tags";
+  wrap.addEventListener("click", (e) => e.stopPropagation()); // don't toggle card
 
-  const current = recipe.tags?.[0]?.name || "Untagged";
-  const NEW = "__new__";
+  const names = (recipe.tags || []).map((t) => t.name);
 
-  // Dedup with a Set so `current` always appears even if the cache lags.
-  const names = [...new Set(["Untagged", current, ...tagsCache.map((t) => t.name)])];
-  for (const name of names) {
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    if (name === current) opt.selected = true;
-    select.appendChild(opt);
+  // One save path for add and remove: send the complete new list, trust
+  // the server's answer, repaint. No local bookkeeping to drift.
+  async function saveTags(newNames) {
+    const res = await apiFetch(`/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tags: newNames }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    recipe.tags = (await res.json()).tags;
+    wrap.replaceWith(renderTagChips(recipe));
   }
-  const newOpt = document.createElement("option");
-  newOpt.value = NEW;
-  newOpt.textContent = "＋ New tag…";
-  select.appendChild(newOpt);
 
-  select.addEventListener("change", async () => {
-    let tag = select.value;
-    if (tag === NEW) {
-      const name = (prompt("New tag name:") || "").trim();
-      if (!name) { select.value = current; return; } // cancelled
-      // Only create it if it's genuinely new (avoids duplicate-insert errors).
-      if (!tagsCache.some((t) => t.name === name)) {
-        try {
-          const res = await apiFetch("/tags", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          await loadTags(); // refresh chips + cache with the new one
-        } catch (err) {
-          alert(`Could not create tag: ${err.message}`);
-          select.value = current;
-          return;
-        }
+  for (const name of names) {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip";
+    const label = document.createElement("span");
+    label.textContent = name;
+    chip.appendChild(label);
+    const del = document.createElement("button");
+    del.className = "chip-delete";
+    del.textContent = "×";
+    del.title = `Remove "${name}"`;
+    del.addEventListener("click", async () => {
+      del.disabled = true;
+      try {
+        await saveTags(names.filter((n) => n !== name));
+      } catch (err) {
+        alert(`Could not remove tag: ${err.message}`);
+        del.disabled = false;
       }
-      tag = name;
-    }
-    try {
-      const res = await apiFetch(`/recipes/${recipe.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        // Full-replacement semantics: send the recipe's complete tag list.
-        body: JSON.stringify({ tags: tag === "Untagged" ? [] : [tag] }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      recipe.tags = (await res.json()).tags;
-      // Rebuild the picker: a brand-new tag isn't among the options built at
-      // render time, so the select would keep showing "＋ New tag…".
-      select.replaceWith(makeTagPicker(recipe));
-    } catch (err) {
-      alert(`Could not change tag: ${err.message}`);
-      select.value = current;
-    }
-  });
+    });
+    chip.appendChild(del);
+    wrap.appendChild(chip);
+  }
 
-  return select;
+  // The "+" swaps into a select: existing tags not yet on the recipe,
+  // plus the "new tag" sentinel (same create flow as the add form).
+  function makeAddSelect() {
+    const select = document.createElement("select");
+    select.className = "tag-select";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Add tag…";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    select.appendChild(placeholder);
+    for (const t of tagsCache) {
+      if (names.includes(t.name)) continue;   // already on the recipe
+      const opt = document.createElement("option");
+      opt.value = t.name;
+      opt.textContent = t.name;
+      select.appendChild(opt);
+    }
+    const newOpt = document.createElement("option");
+    newOpt.value = "__new__";
+    newOpt.textContent = "＋ New tag…";
+    select.appendChild(newOpt);
+
+    let busy = false; // guards the blur-restore while a change is in flight
+    select.addEventListener("change", async () => {
+      busy = true;
+      let chosen = select.value;
+      if (chosen === "__new__") {
+        const name = (prompt("New tag name:") || "").trim();
+        if (!name) { wrap.replaceWith(renderTagChips(recipe)); return; } // cancelled
+        // Only create it if it's genuinely new (avoids duplicate-insert errors).
+        if (!tagsCache.some((t) => t.name === name)) {
+          try {
+            const res = await apiFetch("/tags", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            await loadTags(); // refresh filter chips + cache with the new one
+          } catch (err) {
+            alert(`Could not create tag: ${err.message}`);
+            wrap.replaceWith(renderTagChips(recipe));
+            return;
+          }
+        }
+        chosen = name;
+      }
+      try {
+        await saveTags([...names, chosen]);
+      } catch (err) {
+        alert(`Could not add tag: ${err.message}`);
+        wrap.replaceWith(renderTagChips(recipe));
+      }
+    });
+    // Clicking away without choosing restores the "+" button.
+    select.addEventListener("blur", () => {
+      if (!busy) wrap.replaceWith(renderTagChips(recipe));
+    });
+    setTimeout(() => select.focus(), 0);
+    return select;
+  }
+
+  const add = document.createElement("button");
+  add.className = "tag-add";
+  add.textContent = "+";
+  add.title = "Add tag";
+  add.addEventListener("click", () => add.replaceWith(makeAddSelect()));
+  wrap.appendChild(add);
+
+  return wrap;
 }
 
 // Build one recipe card. Uses textContent/attributes (not innerHTML) so
@@ -339,7 +389,7 @@ function renderRecipeCard(recipe) {
   title.dir = "auto";                  // Hebrew -> RTL, English -> LTR (per title)
   card.appendChild(title);
 
-  card.appendChild(makeTagPicker(recipe));
+  card.appendChild(renderTagChips(recipe));
 
   const tools = document.createElement("div");
   tools.className = "recipe-tools";

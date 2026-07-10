@@ -62,8 +62,8 @@ class ImportRequest(BaseModel):
     url: str
 
 
-class CategoryRequest(BaseModel):
-    """Body for POST /categories — the new category's name."""
+class TagRequest(BaseModel):
+    """Body for POST /tags — the new tag's name."""
     name: str
 
 
@@ -78,7 +78,7 @@ class RecipePatch(BaseModel):
     """Body for PATCH /recipes/{id} — any subset of fields to update."""
     is_favorite: bool | None = None
     is_up_next: bool | None = None
-    category: str | None = None
+    tag: str | None = None
     title: str | None = None
     ingredients: list[Ingredient] | None = None
     steps: list[str] | None = None
@@ -90,56 +90,59 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/categories")
-def get_categories(user: str = Depends(current_user)) -> list[dict]:
+@app.get("/tags")
+def get_tags(user: str = Depends(current_user)) -> list[dict]:
     """List the caller's tags for browsing."""
     return list_tags(owner=user)
 
 
-@app.post("/categories", status_code=201)
-def add_category(body: CategoryRequest, user: str = Depends(current_user)) -> dict:
-    """Create a category and return the stored row (id + name).
+@app.post("/tags", status_code=201)
+def add_tag(body: TagRequest, user: str = Depends(current_user)) -> dict:
+    """Create a tag and return the stored row (id + name).
 
     Validation lives here at the endpoint: blank names are rejected with 400
     before we touch the DB. 201 = 'Created', the correct status for a POST
-    that makes a new resource.
+    that makes a new resource. "Untagged"/"Unknown" are reserved filter
+    values, so a tag can't take those names.
     """
     name = body.name.strip()
     if not name:
-        raise HTTPException(status_code=400, detail="Category name cannot be empty.")
+        raise HTTPException(status_code=400, detail="Tag name cannot be empty.")
+    if name in ("Untagged", "Unknown"):
+        raise HTTPException(status_code=400, detail=f'"{name}" is a reserved name.')
     try:
         return create_tag(name, owner=user)
     except ValueError:
         # 409 Conflict = "the resource already exists" — the standard answer
         # to a duplicate create, distinct from 400 (malformed input).
-        raise HTTPException(status_code=409, detail=f'Category "{name}" already exists.')
+        raise HTTPException(status_code=409, detail=f'Tag "{name}" already exists.')
 
 
-@app.delete("/categories/{category_id}")
-def remove_category(category_id: int, user: str = Depends(current_user)) -> dict:
-    """Delete one of the caller's categories; its recipes fall back to Unknown."""
+@app.delete("/tags/{tag_id}")
+def remove_tag(tag_id: int, user: str = Depends(current_user)) -> dict:
+    """Delete one of the caller's tags; its recipes fall back to Untagged."""
     try:
-        delete_tag(category_id, owner=user)
+        delete_tag(tag_id, owner=user)
     except LookupError:
-        raise HTTPException(status_code=404, detail="Category not found.")
-    return {"status": "deleted", "id": category_id}
+        raise HTTPException(status_code=404, detail="Tag not found.")
+    return {"status": "deleted", "id": tag_id}
 
 
 @app.get("/recipes")
 def get_recipes(
-    category: str | None = None,
+    tag: str | None = None,
     collection: str | None = None,
     user: str = Depends(current_user),
 ) -> list[dict]:
-    """List the caller's recipes, filtered by ?category= or ?collection=."""
-    return list_recipes(category, collection, owner=user)
+    """List the caller's recipes, filtered by ?tag= or ?collection=."""
+    return list_recipes(tag, collection, owner=user)
 
 
 @app.patch("/recipes/{recipe_id}")
 def patch_recipe(
     recipe_id: int, body: RecipePatch, user: str = Depends(current_user)
 ) -> dict:
-    """Update a recipe: flags, category, and/or edited title/ingredients/steps."""
+    """Update a recipe: flags, tag, and/or edited title/ingredients/steps."""
     # exclude_unset = only fields the client actually sent, so this 400 check
     # doesn't need updating every time RecipePatch grows a field.
     if not body.model_dump(exclude_unset=True):
@@ -152,7 +155,7 @@ def patch_recipe(
             owner=user,
             is_favorite=body.is_favorite,
             is_up_next=body.is_up_next,
-            category=body.category,
+            tag=body.tag,
             title=body.title.strip() if body.title else None,
             ingredients=(
                 [i.model_dump() for i in body.ingredients]

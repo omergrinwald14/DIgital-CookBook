@@ -61,7 +61,7 @@ function makeChip(label, onClick, tagId = null) {
 async function loadTags() {
   const list = document.getElementById("tag-list");
   try {
-    const res = await apiFetch("/categories");
+    const res = await apiFetch("/tags");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const tags = await res.json();
     tagsCache = tags; // keep the cache in sync for card pickers
@@ -72,9 +72,9 @@ async function loadTags() {
     // Special cross-tag collections (no id -> no delete button).
     list.appendChild(makeChip("★ Favorites", () => loadRecipes(null, "favorites")));
     list.appendChild(makeChip("🔖 Up Next", () => loadRecipes(null, "up_next")));
-    const unknown = makeChip("Unknown", () => loadRecipes("Unknown"));
-    unknown.classList.add("extra");
-    list.appendChild(unknown);
+    const untagged = makeChip("Untagged", () => loadRecipes("Untagged"));
+    untagged.classList.add("extra");
+    list.appendChild(untagged);
     for (const tag of tags) {
       const chip = makeChip(tag.name, () => loadRecipes(tag.name), tag.id);
       chip.classList.add("extra");
@@ -95,14 +95,14 @@ async function loadTags() {
   }
 }
 
-// Fetch recipes (optionally filtered by category) and render each as a card.
-async function loadRecipes(category = null, collection = null) {
+// Fetch recipes (optionally filtered by tag) and render each as a card.
+async function loadRecipes(tag = null, collection = null) {
   const container = document.getElementById("recipe-list");
   container.textContent = "Loading…";
   try {
-    // Build an encoded query string; filter by category OR collection.
+    // Build an encoded query string; filter by tag OR collection.
     const params = new URLSearchParams();
-    if (category) params.set("category", category);
+    if (tag) params.set("tag", tag);
     if (collection) params.set("collection", collection);
     const qs = params.toString();
     const res = await apiFetch(`/recipes${qs ? `?${qs}` : ""}`);
@@ -222,7 +222,7 @@ function makeFlagToggle(recipe, key, onGlyph, offGlyph, label) {
   return btn;
 }
 
-// Build the tag picker for a card: a <select> of Unknown + every
+// Build the tag picker for a card: a <select> of Untagged + every
 // tag + a "new tag" sentinel. Changing it PATCHes the recipe;
 // the "new" option creates the tag first, then assigns it.
 function makeTagPicker(recipe) {
@@ -230,11 +230,11 @@ function makeTagPicker(recipe) {
   select.className = "recipe-category";
   select.addEventListener("click", (e) => e.stopPropagation()); // don't toggle card
 
-  const current = recipe.categories?.name || "Unknown";
+  const current = recipe.categories?.name || "Untagged";
   const NEW = "__new__";
 
   // Dedup with a Set so `current` always appears even if the cache lags.
-  const names = [...new Set(["Unknown", current, ...tagsCache.map((t) => t.name)])];
+  const names = [...new Set(["Untagged", current, ...tagsCache.map((t) => t.name)])];
   for (const name of names) {
     const opt = document.createElement("option");
     opt.value = name;
@@ -248,14 +248,14 @@ function makeTagPicker(recipe) {
   select.appendChild(newOpt);
 
   select.addEventListener("change", async () => {
-    let category = select.value;
-    if (category === NEW) {
+    let tag = select.value;
+    if (tag === NEW) {
       const name = (prompt("New tag name:") || "").trim();
       if (!name) { select.value = current; return; } // cancelled
       // Only create it if it's genuinely new (avoids duplicate-insert errors).
       if (!tagsCache.some((t) => t.name === name)) {
         try {
-          const res = await apiFetch("/categories", {
+          const res = await apiFetch("/tags", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name }),
@@ -268,16 +268,16 @@ function makeTagPicker(recipe) {
           return;
         }
       }
-      category = name;
+      tag = name;
     }
     try {
       const res = await apiFetch(`/recipes/${recipe.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category }),
+        body: JSON.stringify({ tag }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      recipe.categories = category === "Unknown" ? null : { name: category };
+      recipe.categories = tag === "Untagged" ? null : { name: tag };
     } catch (err) {
       alert(`Could not change tag: ${err.message}`);
       select.value = current;
@@ -446,7 +446,7 @@ async function addTag(event) {
   const name = input.value.trim();
   if (!name) return;                // ignore empty; backend also guards (400)
   try {
-    const res = await apiFetch("/categories", {
+    const res = await apiFetch("/tags", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
@@ -495,12 +495,12 @@ document.getElementById("import-form").addEventListener("submit", importRecipe);
 
 // Remove a tag (after confirm), then refresh chips + recipes.
 async function deleteTag(id, label) {
-  if (!confirm(`Delete "${label}"? Its recipes will move to Unknown.`)) return;
+  if (!confirm(`Delete "${label}"? Its recipes will become Untagged.`)) return;
   try {
-    const res = await apiFetch(`/categories/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`/tags/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     await loadTags();         // repaint chips without the deleted one
-    await loadRecipes();      // recipes may have moved to Unknown
+    await loadRecipes();      // recipes may have become Untagged
   } catch (err) {
     alert(`Could not delete tag: ${err.message}`);
   }

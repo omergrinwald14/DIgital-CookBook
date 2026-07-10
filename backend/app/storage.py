@@ -54,12 +54,13 @@ def _synchronized(fn):
 
 
 def _tag_id(client: Client, name: str | None, owner: str) -> int | None:
-    """Map OWNER's tag NAME to its id. Returns None for Unknown/no match.
+    """Map OWNER's tag NAME to its id. Returns None for Untagged/no match.
 
     Owner-scoped: two users can each have a "Pasta" with different ids.
-    This enforces the "null -> Unknown" rule at the database boundary.
+    This enforces the "null -> Untagged" rule at the database boundary.
+    "Unknown" stays reserved too until the parser emits tags (7-10).
     """
-    if not name or name == "Unknown":
+    if not name or name in ("Untagged", "Unknown"):
         return None
     result = (
         client.table("categories")
@@ -109,13 +110,13 @@ def create_tag(name: str, *, owner: str) -> dict:
 
 @_synchronized
 def delete_tag(tag_id: int, *, owner: str) -> None:
-    """Delete one of OWNER's tags; its recipes fall back to Unknown.
+    """Delete one of OWNER's tags; its recipes fall back to Untagged.
 
     Ownership is checked FIRST — before any mutation — so a wrong/foreign id
     can't detach another user's recipes (LookupError -> 404 at the endpoint).
     Then two ordered steps: detach recipes (set category_id = null) so the
     foreign key won't block the delete, then remove the tag row. This
-    enforces the plan's "null -> Unknown" rule instead of cascading deletes
+    enforces the plan's "null -> Untagged" rule instead of cascading deletes
     (which destroy recipes) or failing on the FK constraint.
     """
     client = _client()
@@ -137,7 +138,7 @@ def delete_tag(tag_id: int, *, owner: str) -> None:
 
 @_synchronized
 def list_recipes(
-    category: str | None = None,
+    tag: str | None = None,
     collection: str | None = None,
     *,
     owner: str,
@@ -145,25 +146,25 @@ def list_recipes(
     """Return one owner's recipes (newest first), optionally filtered.
 
     `owner` scopes every query — users only ever see their own rows (5-3).
-    `category` filters by category name (inner join); the special value
-    "Unknown" filters to recipes with no category (category_id IS NULL).
+    `tag` filters by tag name (inner join); the special value
+    "Untagged" filters to recipes with no tag (category_id IS NULL).
     `collection` filters by a cross-cutting flag: "favorites" -> is_favorite,
     "up_next" -> is_up_next. The two are independent; used one at a time.
     """
     client = _client()
-    # Inner join only when filtering by a real category; left join otherwise so
-    # Unknown (null-category) recipes still appear.
-    if category and category != "Unknown":
+    # Inner join only when filtering by a real tag; left join otherwise so
+    # Untagged (null-tag) recipes still appear.
+    if tag and tag != "Untagged":
         join = "categories!inner(name)"
     else:
         join = "categories(name)"
     query = client.table("recipes").select(f"*, {join}").eq("owner", owner).order(
         "created_at", desc=True
     )
-    if category == "Unknown":
-        query = query.is_("category_id", "null")   # the null-category bucket
-    elif category:
-        query = query.eq("categories.name", category)
+    if tag == "Untagged":
+        query = query.is_("category_id", "null")   # the untagged bucket
+    elif tag:
+        query = query.eq("categories.name", tag)
     if collection == "favorites":
         query = query.eq("is_favorite", True)
     elif collection == "up_next":
@@ -265,7 +266,7 @@ def update_recipe(
     owner: str,
     is_favorite: bool | None = None,
     is_up_next: bool | None = None,
-    category: str | None = None,
+    tag: str | None = None,
     title: str | None = None,
     ingredients: list | None = None,
     steps: list | None = None,
@@ -273,8 +274,8 @@ def update_recipe(
     """Partial-update a recipe and return the updated row.
 
     Only the fields passed (non-None) are written, so a caller can toggle a
-    collection flag OR reassign the category independently. `category` is a
-    NAME, mapped to category_id here (Unknown / unrecognized name -> null),
+    collection flag OR reassign the tag independently. `tag` is a
+    NAME, mapped to category_id here (Untagged / unrecognized name -> null),
     reusing save_recipe's rule. Keyword-only args prevent positional mix-ups.
     """
     client = _client()
@@ -283,8 +284,8 @@ def update_recipe(
         updates["is_favorite"] = is_favorite
     if is_up_next is not None:
         updates["is_up_next"] = is_up_next
-    if category is not None:
-        updates["category_id"] = _tag_id(client, category, owner)
+    if tag is not None:
+        updates["category_id"] = _tag_id(client, tag, owner)
     if title is not None:
         updates["title"] = title
     if ingredients is not None:

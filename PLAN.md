@@ -161,7 +161,7 @@ Zero-downtime shape: rename first, then expand → dual-write → switch reads �
 switch writes → contract. DDL scripts live in the session plan; run them in
 the Supabase dashboard SQL editor only.
 - [x] 7-1. Internal rename (Python/JS/HTML names, dict key category→tag) — zero behavior change.
-- [ ] 7-2. API rename: /categories→/tags, ?tag=, "Unknown"→"Untagged".
+- [x] 7-2. API rename: /categories→/tags, ?tag=, "Unknown"→"Untagged".
 - [ ] 7-3. ⚠ Cutover DDL: rename table categories→tags + column category_id→tag_id; `.table("tags")` commit (brief downtime).
 - [ ] 7-4. DDL: recipe_tags join table (PK recipe_id+tag_id, cascades) + backfill from tag_id.
 - [ ] 7-5. Dual-write: save/update also write recipe_tags (reads unchanged).

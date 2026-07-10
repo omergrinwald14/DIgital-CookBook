@@ -15,13 +15,13 @@ from app.parser import parse_recipe
 from app.tiktok import fetch_caption as fetch_tiktok
 from app.tiktok import normalize_tiktok_url
 from app.storage import (
-    create_category,
-    delete_category,
+    create_tag,
     delete_recipe,
+    delete_tag,
     delete_user,
     find_recipe_by_url,
-    list_categories,
     list_recipes,
+    list_tags,
     save_recipe,
     store_thumbnail,
     update_recipe,
@@ -92,8 +92,8 @@ def health() -> dict:
 
 @app.get("/categories")
 def get_categories(user: str = Depends(current_user)) -> list[dict]:
-    """List the caller's categories for browsing."""
-    return list_categories(owner=user)
+    """List the caller's tags for browsing."""
+    return list_tags(owner=user)
 
 
 @app.post("/categories", status_code=201)
@@ -108,7 +108,7 @@ def add_category(body: CategoryRequest, user: str = Depends(current_user)) -> di
     if not name:
         raise HTTPException(status_code=400, detail="Category name cannot be empty.")
     try:
-        return create_category(name, owner=user)
+        return create_tag(name, owner=user)
     except ValueError:
         # 409 Conflict = "the resource already exists" — the standard answer
         # to a duplicate create, distinct from 400 (malformed input).
@@ -119,7 +119,7 @@ def add_category(body: CategoryRequest, user: str = Depends(current_user)) -> di
 def remove_category(category_id: int, user: str = Depends(current_user)) -> dict:
     """Delete one of the caller's categories; its recipes fall back to Unknown."""
     try:
-        delete_category(category_id, owner=user)
+        delete_tag(category_id, owner=user)
     except LookupError:
         raise HTTPException(status_code=404, detail="Category not found.")
     return {"status": "deleted", "id": category_id}
@@ -220,13 +220,13 @@ def import_recipe(body: ImportRequest, user: str = Depends(current_user)) -> dic
         return existing
 
     meta = fetch(url)
-    category_names = [c["name"] for c in list_categories(owner=user)]
-    recipe = parse_recipe(meta["caption"], category_names)
+    tag_names = [t["name"] for t in list_tags(owner=user)]
+    recipe = parse_recipe(meta["caption"], tag_names)
 
     # Merge the two sources: parsed recipe fields + fetch metadata (link/thumb).
     merged = {
         "title": recipe.get("title") or meta.get("title"),
-        "category": recipe.get("category"),
+        "tag": recipe.get("tag"),
         "ingredients": recipe.get("ingredients"),
         "steps": recipe.get("steps"),
         "source_url": meta.get("source_url"),

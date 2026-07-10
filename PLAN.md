@@ -153,6 +153,25 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
   every open (visible banner) — Background Sync alone stranded shares after
   ~3 failed retries against Render cold starts.
 
+**Phase 7 — Tags migration (one category per recipe → multiple tags):**
+Decisions: full rename categories→tags (DB, API, UI); Gemini picks 1–2 tags
+([] if none fits); card UI = tag chips + "+" picker; "Unknown"→"Untagged"
+(= recipe with zero tags); filter chips multi-select with AND semantics.
+Zero-downtime shape: rename first, then expand → dual-write → switch reads →
+switch writes → contract. DDL scripts live in the session plan; run them in
+the Supabase dashboard SQL editor only.
+- [x] 7-1. Internal rename (Python/JS/HTML names, dict key category→tag) — zero behavior change.
+- [ ] 7-2. API rename: /categories→/tags, ?tag=, "Unknown"→"Untagged".
+- [ ] 7-3. ⚠ Cutover DDL: rename table categories→tags + column category_id→tag_id; `.table("tags")` commit (brief downtime).
+- [ ] 7-4. DDL: recipe_tags join table (PK recipe_id+tag_id, cascades) + backfill from tag_id.
+- [ ] 7-5. Dual-write: save/update also write recipe_tags (reads unchanged).
+- [ ] 7-6. Switch reads: /recipes embeds a tags list from recipe_tags; "Untagged" = no join rows.
+- [ ] 7-7. PATCH /recipes accepts `tags: [names]` (full replacement).
+- [ ] 7-8. Card UI: tag chips with × + a "+" picker (replaces the dropdown).
+- [ ] 7-9. Filter chips multi-select: several active tags = recipes with ALL of them.
+- [ ] 7-10. Gemini import returns 1–2 tags; save_recipe writes join rows, stops writing tag_id.
+- [ ] 7-11. ⚠ Contract: drop recipes.tag_id; remove the detach step in delete_tag; rewrite Data model section here.
+
 ## TODO backlog — pick a task when time is convenient
 > Not scheduled; grab one when there's a free moment. New "later" items land here.
 - [ ] **Cold-start drill (one Android):** pause the cron-job.org keep-warm job →
@@ -169,6 +188,9 @@ paste-link already works — see Phase 3.5.) All hit `POST /import`.
 - [ ] 5-3f frontend — delete-user button in the app.
 - [ ] Require `X-User`: drop the `DEFAULT_OWNER` fallback + lowercase the header
   server-side (only after every phone has logged in / Shortcut updated).
+- [ ] (after Phase 7) Search also matches tag names — one-liner in `applySearch`.
+- [ ] (after Phase 7) `/import` duplicate response (`find_recipe_by_url`) doesn't
+  embed tags — harmless; embed if a client ever needs it.
 
 ## Risks
 - **Instagram fetch is free but unofficial.** yt-dlp can break when Instagram changes;

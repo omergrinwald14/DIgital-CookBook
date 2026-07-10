@@ -53,8 +53,8 @@ def _synchronized(fn):
     return wrapper
 
 
-def _category_id(client: Client, name: str | None, owner: str) -> int | None:
-    """Map OWNER's category NAME to its id. Returns None for Unknown/no match.
+def _tag_id(client: Client, name: str | None, owner: str) -> int | None:
+    """Map OWNER's tag NAME to its id. Returns None for Unknown/no match.
 
     Owner-scoped: two users can each have a "Pasta" with different ids.
     This enforces the "null -> Unknown" rule at the database boundary.
@@ -73,8 +73,8 @@ def _category_id(client: Client, name: str | None, owner: str) -> int | None:
 
 
 @_synchronized
-def list_categories(*, owner: str) -> list[dict]:
-    """Return OWNER's categories (id + name), sorted by name.
+def list_tags(*, owner: str) -> list[dict]:
+    """Return OWNER's tags (id + name), sorted by name.
 
     A plain SELECT — the read counterpart to save_recipe's INSERT.
     """
@@ -90,17 +90,17 @@ def list_categories(*, owner: str) -> list[dict]:
 
 
 @_synchronized
-def create_category(name: str, *, owner: str) -> dict:
-    """Insert a new category for OWNER and return the stored row (id + name).
+def create_tag(name: str, *, owner: str) -> dict:
+    """Insert a new tag for OWNER and return the stored row (id + name).
 
-    The write counterpart to list_categories. Duplicates are per owner (each
+    The write counterpart to list_tags. Duplicates are per owner (each
     user can have their own "Pasta"); they raise ValueError (endpoint turns it
     into a 409). The module lock makes the check-then-insert atomic, mirroring
     save_recipe's dedupe pattern.
     """
     client = _client()
-    if _category_id(client, name, owner) is not None:
-        raise ValueError(f"category {name!r} already exists")
+    if _tag_id(client, name, owner) is not None:
+        raise ValueError(f"tag {name!r} already exists")
     result = (
         client.table("categories").insert({"name": name, "owner": owner}).execute()
     )
@@ -108,13 +108,13 @@ def create_category(name: str, *, owner: str) -> dict:
 
 
 @_synchronized
-def delete_category(category_id: int, *, owner: str) -> None:
-    """Delete one of OWNER's categories; its recipes fall back to Unknown.
+def delete_tag(tag_id: int, *, owner: str) -> None:
+    """Delete one of OWNER's tags; its recipes fall back to Unknown.
 
     Ownership is checked FIRST — before any mutation — so a wrong/foreign id
     can't detach another user's recipes (LookupError -> 404 at the endpoint).
     Then two ordered steps: detach recipes (set category_id = null) so the
-    foreign key won't block the delete, then remove the category row. This
+    foreign key won't block the delete, then remove the tag row. This
     enforces the plan's "null -> Unknown" rule instead of cascading deletes
     (which destroy recipes) or failing on the FK constraint.
     """
@@ -122,17 +122,17 @@ def delete_category(category_id: int, *, owner: str) -> None:
     owned = (
         client.table("categories")
         .select("id")
-        .eq("id", category_id)
+        .eq("id", tag_id)
         .eq("owner", owner)
         .limit(1)
         .execute()
     )
     if not owned.data:
-        raise LookupError(f"category {category_id} not found")
+        raise LookupError(f"tag {tag_id} not found")
     client.table("recipes").update({"category_id": None}).eq(
-        "category_id", category_id
+        "category_id", tag_id
     ).execute()
-    client.table("categories").delete().eq("id", category_id).execute()
+    client.table("categories").delete().eq("id", tag_id).execute()
 
 
 @_synchronized
@@ -233,7 +233,7 @@ def save_recipe(recipe: dict, *, owner: str) -> dict:
     (RLock, so the nested find_recipe_by_url call is fine).
 
     Args:
-        recipe: dict with title, category (name), ingredients, steps,
+        recipe: dict with title, tag (name), ingredients, steps,
                 source_url, thumbnail — the shape returned by POST /import.
         owner:  the saving user's identity, stamped onto the row.
     """
@@ -247,7 +247,7 @@ def save_recipe(recipe: dict, *, owner: str) -> dict:
 
     row = {
         "title": recipe.get("title"),
-        "category_id": _category_id(client, recipe.get("category"), owner),
+        "category_id": _tag_id(client, recipe.get("tag"), owner),
         "source_url": recipe.get("source_url"),
         "thumbnail": recipe.get("thumbnail"),
         "ingredients": recipe.get("ingredients"),  # list -> stored as jsonb
@@ -284,7 +284,7 @@ def update_recipe(
     if is_up_next is not None:
         updates["is_up_next"] = is_up_next
     if category is not None:
-        updates["category_id"] = _category_id(client, category, owner)
+        updates["category_id"] = _tag_id(client, category, owner)
     if title is not None:
         updates["title"] = title
     if ingredients is not None:
@@ -312,8 +312,8 @@ def update_recipe(
 def delete_user(owner: str) -> dict:
     """Erase every row belonging to OWNER; returns counts per table.
 
-    Recipes go first — they reference categories via the FK, so deleting
-    categories first would be blocked. Thumbnails in Storage are left behind
+    Recipes go first — they reference tags via the FK, so deleting
+    tags first would be blocked. Thumbnails in Storage are left behind
     as harmless orphans (stable names, overwritten on any re-import).
     """
     client = _client()
@@ -327,7 +327,7 @@ def delete_recipe(recipe_id: int, *, owner: str) -> None:
     """Delete one of OWNER's recipes by id (someone else's id is a no-op).
 
     Recipes are leaf rows (nothing references them), so this is a straight
-    DELETE — simpler than delete_category, which first detaches its recipes.
+    DELETE — simpler than delete_tag, which first detaches its recipes.
     """
     client = _client()
     client.table("recipes").delete().eq("id", recipe_id).eq("owner", owner).execute()
@@ -342,7 +342,7 @@ if __name__ == "__main__":
 
     sample = {
         "title": "Test — Spaghetti alla Nerano",
-        "category": "Pasta",
+        "tag": "Pasta",
         "ingredients": [{"name": "Spaghetti", "quantity": 320, "unit": "g"}],
         "steps": ["Fry zucchini.", "Cook pasta.", "Toss with provolone."],
         "source_url": "https://www.instagram.com/reel/DZ1ydoFKh1p/",

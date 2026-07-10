@@ -29,13 +29,13 @@ h1 { margin:0 auto 0 0; font-size:1.4rem; }
 #install-guide h3 { margin:1rem 0 .4rem; }
 #install-guide li { margin:.35rem 0; }
 main { padding:1rem; max-width:600px; margin:0 auto; }
-#category-list { list-style:none; padding:0; display:flex; flex-wrap:wrap; gap:.5rem; }
-#category-list li { background:#fff; border:1px solid #e0d8cf; border-radius:999px; padding:.4rem .9rem; cursor:pointer; }
-#category-list li.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-#category-list.collapsed .extra { display:none; }
-#add-category-form { display:flex; gap:.5rem; margin:.75rem 0; }
-#add-category-form input { flex:1; padding:.4rem .6rem; border:1px solid #e0d8cf; border-radius:8px; }
-#add-category-form button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:.4rem .9rem; cursor:pointer; }
+#tag-list { list-style:none; padding:0; display:flex; flex-wrap:wrap; gap:.5rem; }
+#tag-list li { background:#fff; border:1px solid #e0d8cf; border-radius:999px; padding:.4rem .9rem; cursor:pointer; }
+#tag-list li.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+#tag-list.collapsed .extra { display:none; }
+#add-tag-form { display:flex; gap:.5rem; margin:.75rem 0; }
+#add-tag-form input { flex:1; padding:.4rem .6rem; border:1px solid #e0d8cf; border-radius:8px; }
+#add-tag-form button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:.4rem .9rem; cursor:pointer; }
 #import-form { display:flex; gap:.5rem; margin:.5rem 0; }
 #import-form input { flex:1; padding:.4rem .6rem; border:1px solid #e0d8cf; border-radius:8px; }
 #import-form button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:.4rem .9rem; cursor:pointer; }

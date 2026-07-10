@@ -1,7 +1,7 @@
 {
   "name": "Digital CookBook",
   "short_name": "CookBook",
-  "description": "Your Instagram recipes, categorized and browsable.",
+  "description": "Your Instagram recipes, tagged and browsable.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -20,9 +20,9 @@ function apiFetch(path, options = {}) {
   });
 }
 
-// Cache of categories (id+name), refreshed by loadCategories(). Card pickers
-// read this so each card can list every category without its own fetch.
-let categoriesCache = [];
+// Cache of tags (id+name), refreshed by loadTags(). Card pickers
+// read this so each card can list every tag without its own fetch.
+let tagsCache = [];
 
 // Last-fetched recipe list. Search filters this in the browser — no refetch,
 // so it stays instant even when the backend is cold.
@@ -36,52 +36,52 @@ function setActiveChip(li) {
   li.classList.add("active");
 }
 
-// Build one clickable category chip. If categoryId is given, add a ✕ to delete it.
-function makeChip(label, onClick, categoryId = null) {
+// Build one clickable tag chip. If tagId is given, add a ✕ to delete it.
+function makeChip(label, onClick, tagId = null) {
   const li = document.createElement("li");
   const text = document.createElement("span");
   text.textContent = label;
   li.appendChild(text);
   li.addEventListener("click", () => { setActiveChip(li); onClick(); });
-  if (categoryId !== null) {
+  if (tagId !== null) {
     const del = document.createElement("button");
     del.className = "chip-delete";
     del.textContent = "×";
     del.title = `Delete "${label}"`;
     del.addEventListener("click", (e) => {
       e.stopPropagation();                 // don't also trigger the filter
-      deleteCategory(categoryId, label);
+      deleteTag(tagId, label);
     });
     li.appendChild(del);
   }
   return li;
 }
 
-// Fetch the category list and paint it as clickable filter chips.
-async function loadCategories() {
-  const list = document.getElementById("category-list");
+// Fetch the tag list and paint it as clickable filter chips.
+async function loadTags() {
+  const list = document.getElementById("tag-list");
   try {
     const res = await apiFetch("/categories");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const categories = await res.json();
-    categoriesCache = categories; // keep the cache in sync for card pickers
+    const tags = await res.json();
+    tagsCache = tags; // keep the cache in sync for card pickers
     list.innerHTML = ""; // clear "Loading…"
     const all = makeChip("All", () => loadRecipes()); // clears the filter
     list.appendChild(all);
     setActiveChip(all); // "All" highlighted on load
-    // Special cross-category collections (no id -> no delete button).
+    // Special cross-tag collections (no id -> no delete button).
     list.appendChild(makeChip("★ Favorites", () => loadRecipes(null, "favorites")));
     list.appendChild(makeChip("🔖 Up Next", () => loadRecipes(null, "up_next")));
     const unknown = makeChip("Unknown", () => loadRecipes("Unknown"));
     unknown.classList.add("extra");
     list.appendChild(unknown);
-    for (const cat of categories) {
-      const chip = makeChip(cat.name, () => loadRecipes(cat.name), cat.id);
+    for (const tag of tags) {
+      const chip = makeChip(tag.name, () => loadRecipes(tag.name), tag.id);
       chip.classList.add("extra");
       list.appendChild(chip);
     }
     // Progressive disclosure: chips past the three pinned ones hide behind
-    // a More/Less toggle so categories don't swallow the screen.
+    // a More/Less toggle so tags don't swallow the screen.
     const toggle = document.createElement("li");
     toggle.textContent = "More ▾";
     toggle.addEventListener("click", () => {
@@ -91,7 +91,7 @@ async function loadCategories() {
     list.appendChild(toggle);
     list.classList.add("collapsed");
   } catch (err) {
-    list.textContent = `Could not load categories: ${err.message}`;
+    list.textContent = `Could not load tags: ${err.message}`;
   }
 }
 
@@ -222,10 +222,10 @@ function makeFlagToggle(recipe, key, onGlyph, offGlyph, label) {
   return btn;
 }
 
-// Build the category picker for a card: a <select> of Unknown + every
-// category + a "new category" sentinel. Changing it PATCHes the recipe;
-// the "new" option creates the category first, then assigns it.
-function makeCategoryPicker(recipe) {
+// Build the tag picker for a card: a <select> of Unknown + every
+// tag + a "new tag" sentinel. Changing it PATCHes the recipe;
+// the "new" option creates the tag first, then assigns it.
+function makeTagPicker(recipe) {
   const select = document.createElement("select");
   select.className = "recipe-category";
   select.addEventListener("click", (e) => e.stopPropagation()); // don't toggle card
@@ -234,7 +234,7 @@ function makeCategoryPicker(recipe) {
   const NEW = "__new__";
 
   // Dedup with a Set so `current` always appears even if the cache lags.
-  const names = [...new Set(["Unknown", current, ...categoriesCache.map((c) => c.name)])];
+  const names = [...new Set(["Unknown", current, ...tagsCache.map((t) => t.name)])];
   for (const name of names) {
     const opt = document.createElement("option");
     opt.value = name;
@@ -244,16 +244,16 @@ function makeCategoryPicker(recipe) {
   }
   const newOpt = document.createElement("option");
   newOpt.value = NEW;
-  newOpt.textContent = "＋ New category…";
+  newOpt.textContent = "＋ New tag…";
   select.appendChild(newOpt);
 
   select.addEventListener("change", async () => {
     let category = select.value;
     if (category === NEW) {
-      const name = (prompt("New category name:") || "").trim();
+      const name = (prompt("New tag name:") || "").trim();
       if (!name) { select.value = current; return; } // cancelled
       // Only create it if it's genuinely new (avoids duplicate-insert errors).
-      if (!categoriesCache.some((c) => c.name === name)) {
+      if (!tagsCache.some((t) => t.name === name)) {
         try {
           const res = await apiFetch("/categories", {
             method: "POST",
@@ -261,9 +261,9 @@ function makeCategoryPicker(recipe) {
             body: JSON.stringify({ name }),
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          await loadCategories(); // refresh chips + cache with the new one
+          await loadTags(); // refresh chips + cache with the new one
         } catch (err) {
-          alert(`Could not create category: ${err.message}`);
+          alert(`Could not create tag: ${err.message}`);
           select.value = current;
           return;
         }
@@ -279,7 +279,7 @@ function makeCategoryPicker(recipe) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       recipe.categories = category === "Unknown" ? null : { name: category };
     } catch (err) {
-      alert(`Could not change category: ${err.message}`);
+      alert(`Could not change tag: ${err.message}`);
       select.value = current;
     }
   });
@@ -335,7 +335,7 @@ function renderRecipeCard(recipe) {
   title.dir = "auto";                  // Hebrew -> RTL, English -> LTR (per title)
   card.appendChild(title);
 
-  card.appendChild(makeCategoryPicker(recipe));
+  card.appendChild(makeTagPicker(recipe));
 
   const tools = document.createElement("div");
   tools.className = "recipe-tools";
@@ -439,10 +439,10 @@ function renderEditForm(recipe) {
   return card;
 }
 
-// Create a category from the add form, then refresh the chips.
-async function addCategory(event) {
+// Create a tag from the add form, then refresh the chips.
+async function addTag(event) {
   event.preventDefault();           // don't reload the page on submit
-  const input = document.getElementById("new-category-name");
+  const input = document.getElementById("new-tag-name");
   const name = input.value.trim();
   if (!name) return;                // ignore empty; backend also guards (400)
   try {
@@ -453,13 +453,13 @@ async function addCategory(event) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     input.value = "";               // clear the box
-    await loadCategories();         // repaint chips, now including the new one
+    await loadTags();               // repaint chips, now including the new one
   } catch (err) {
-    alert(`Could not add category: ${err.message}`);
+    alert(`Could not add tag: ${err.message}`);
   }
 }
 
-document.getElementById("add-category-form").addEventListener("submit", addCategory);
+document.getElementById("add-tag-form").addEventListener("submit", addTag);
 
 // Import a recipe from a pasted URL via POST /import (slow: fetch + LLM parse).
 async function importRecipe(event) {
@@ -493,16 +493,16 @@ async function importRecipe(event) {
 
 document.getElementById("import-form").addEventListener("submit", importRecipe);
 
-// Remove a category (after confirm), then refresh chips + recipes.
-async function deleteCategory(id, label) {
+// Remove a tag (after confirm), then refresh chips + recipes.
+async function deleteTag(id, label) {
   if (!confirm(`Delete "${label}"? Its recipes will move to Unknown.`)) return;
   try {
     const res = await apiFetch(`/categories/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    await loadCategories();   // repaint chips without the deleted one
+    await loadTags();         // repaint chips without the deleted one
     await loadRecipes();      // recipes may have moved to Unknown
   } catch (err) {
-    alert(`Could not delete category: ${err.message}`);
+    alert(`Could not delete tag: ${err.message}`);
   }
 }
 
@@ -545,11 +545,11 @@ async function drainPendingShares() {
   if (saved) await loadRecipes();
 }
 
-// Boot: categories first so card pickers have the cache; recipes render
+// Boot: tags first so card pickers have the cache; recipes render
 // before the (possibly slow, cold-start) queue drain so the app is usable
 // immediately.
 function boot() {
-  loadCategories().then(loadRecipes).then(drainPendingShares);
+  loadTags().then(loadRecipes).then(drainPendingShares);
 }
 
 // Login gate (5-3c): with a stored identity, boot straight in; without one,

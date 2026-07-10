@@ -278,6 +278,9 @@ function makeTagPicker(recipe) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       recipe.categories = tag === "Untagged" ? null : { name: tag };
+      // Rebuild the picker: a brand-new tag isn't among the options built at
+      // render time, so the select would keep showing "＋ New tag…".
+      select.replaceWith(makeTagPicker(recipe));
     } catch (err) {
       alert(`Could not change tag: ${err.message}`);
       select.value = current;

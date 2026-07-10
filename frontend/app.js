@@ -230,7 +230,7 @@ function makeTagPicker(recipe) {
   select.className = "recipe-category";
   select.addEventListener("click", (e) => e.stopPropagation()); // don't toggle card
 
-  const current = recipe.categories?.name || "Untagged";
+  const current = recipe.tags?.name || "Untagged";
   const NEW = "__new__";
 
   // Dedup with a Set so `current` always appears even if the cache lags.
@@ -277,7 +277,7 @@ function makeTagPicker(recipe) {
         body: JSON.stringify({ tag }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      recipe.categories = tag === "Untagged" ? null : { name: tag };
+      recipe.tags = tag === "Untagged" ? null : { name: tag };
       // Rebuild the picker: a brand-new tag isn't among the options built at
       // render time, so the select would keep showing "＋ New tag…".
       select.replaceWith(makeTagPicker(recipe));

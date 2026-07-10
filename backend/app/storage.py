@@ -63,7 +63,7 @@ def _tag_id(client: Client, name: str | None, owner: str) -> int | None:
     if not name or name in ("Untagged", "Unknown"):
         return None
     result = (
-        client.table("categories")
+        client.table("tags")
         .select("id")
         .eq("name", name)
         .eq("owner", owner)
@@ -81,7 +81,7 @@ def list_tags(*, owner: str) -> list[dict]:
     """
     client = _client()
     result = (
-        client.table("categories")
+        client.table("tags")
         .select("id, name")
         .eq("owner", owner)
         .order("name")
@@ -103,7 +103,7 @@ def create_tag(name: str, *, owner: str) -> dict:
     if _tag_id(client, name, owner) is not None:
         raise ValueError(f"tag {name!r} already exists")
     result = (
-        client.table("categories").insert({"name": name, "owner": owner}).execute()
+        client.table("tags").insert({"name": name, "owner": owner}).execute()
     )
     return result.data[0]
 
@@ -114,14 +114,14 @@ def delete_tag(tag_id: int, *, owner: str) -> None:
 
     Ownership is checked FIRST — before any mutation — so a wrong/foreign id
     can't detach another user's recipes (LookupError -> 404 at the endpoint).
-    Then two ordered steps: detach recipes (set category_id = null) so the
+    Then two ordered steps: detach recipes (set tag_id = null) so the
     foreign key won't block the delete, then remove the tag row. This
     enforces the plan's "null -> Untagged" rule instead of cascading deletes
     (which destroy recipes) or failing on the FK constraint.
     """
     client = _client()
     owned = (
-        client.table("categories")
+        client.table("tags")
         .select("id")
         .eq("id", tag_id)
         .eq("owner", owner)
@@ -130,10 +130,10 @@ def delete_tag(tag_id: int, *, owner: str) -> None:
     )
     if not owned.data:
         raise LookupError(f"tag {tag_id} not found")
-    client.table("recipes").update({"category_id": None}).eq(
-        "category_id", tag_id
+    client.table("recipes").update({"tag_id": None}).eq(
+        "tag_id", tag_id
     ).execute()
-    client.table("categories").delete().eq("id", tag_id).execute()
+    client.table("tags").delete().eq("id", tag_id).execute()
 
 
 @_synchronized
@@ -147,7 +147,7 @@ def list_recipes(
 
     `owner` scopes every query — users only ever see their own rows (5-3).
     `tag` filters by tag name (inner join); the special value
-    "Untagged" filters to recipes with no tag (category_id IS NULL).
+    "Untagged" filters to recipes with no tag (tag_id IS NULL).
     `collection` filters by a cross-cutting flag: "favorites" -> is_favorite,
     "up_next" -> is_up_next. The two are independent; used one at a time.
     """
@@ -155,16 +155,16 @@ def list_recipes(
     # Inner join only when filtering by a real tag; left join otherwise so
     # Untagged (null-tag) recipes still appear.
     if tag and tag != "Untagged":
-        join = "categories!inner(name)"
+        join = "tags!inner(name)"
     else:
-        join = "categories(name)"
+        join = "tags(name)"
     query = client.table("recipes").select(f"*, {join}").eq("owner", owner).order(
         "created_at", desc=True
     )
     if tag == "Untagged":
-        query = query.is_("category_id", "null")   # the untagged bucket
+        query = query.is_("tag_id", "null")   # the untagged bucket
     elif tag:
-        query = query.eq("categories.name", tag)
+        query = query.eq("tags.name", tag)
     if collection == "favorites":
         query = query.eq("is_favorite", True)
     elif collection == "up_next":
@@ -248,7 +248,7 @@ def save_recipe(recipe: dict, *, owner: str) -> dict:
 
     row = {
         "title": recipe.get("title"),
-        "category_id": _tag_id(client, recipe.get("tag"), owner),
+        "tag_id": _tag_id(client, recipe.get("tag"), owner),
         "source_url": recipe.get("source_url"),
         "thumbnail": recipe.get("thumbnail"),
         "ingredients": recipe.get("ingredients"),  # list -> stored as jsonb
@@ -275,7 +275,7 @@ def update_recipe(
 
     Only the fields passed (non-None) are written, so a caller can toggle a
     collection flag OR reassign the tag independently. `tag` is a
-    NAME, mapped to category_id here (Untagged / unrecognized name -> null),
+    NAME, mapped to tag_id here (Untagged / unrecognized name -> null),
     reusing save_recipe's rule. Keyword-only args prevent positional mix-ups.
     """
     client = _client()
@@ -285,7 +285,7 @@ def update_recipe(
     if is_up_next is not None:
         updates["is_up_next"] = is_up_next
     if tag is not None:
-        updates["category_id"] = _tag_id(client, tag, owner)
+        updates["tag_id"] = _tag_id(client, tag, owner)
     if title is not None:
         updates["title"] = title
     if ingredients is not None:
@@ -319,8 +319,8 @@ def delete_user(owner: str) -> dict:
     """
     client = _client()
     recipes = client.table("recipes").delete().eq("owner", owner).execute()
-    categories = client.table("categories").delete().eq("owner", owner).execute()
-    return {"recipes": len(recipes.data), "categories": len(categories.data)}
+    tags = client.table("tags").delete().eq("owner", owner).execute()
+    return {"recipes": len(recipes.data), "tags": len(tags.data)}
 
 
 @_synchronized

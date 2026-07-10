@@ -138,7 +138,7 @@ def delete_tag(tag_id: int, *, owner: str) -> None:
 
 @_synchronized
 def list_recipes(
-    tag: str | None = None,
+    tags: list[str] | None = None,
     collection: str | None = None,
     *,
     owner: str,
@@ -146,10 +146,10 @@ def list_recipes(
     """Return one owner's recipes (newest first), optionally filtered.
 
     `owner` scopes every query — users only ever see their own rows (5-3).
-    `tag` filters by tag name; the special value "Untagged" filters to
-    recipes with no recipe_tags rows. `collection` filters by a
-    cross-cutting flag: "favorites" -> is_favorite, "up_next" ->
-    is_up_next. The two are independent; used one at a time.
+    `tags` is a list of tag names combined with AND — a recipe must carry
+    EVERY one. The special value "Untagged" (used alone by the frontend)
+    filters to recipes with no recipe_tags rows. `collection` filters by a
+    cross-cutting flag: "favorites" -> is_favorite, "up_next" -> is_up_next.
     Each returned recipe carries "tags": a name-sorted list of
     {id, name} dicts read from the join table (empty list = Untagged).
     """
@@ -160,20 +160,31 @@ def list_recipes(
         .eq("owner", owner)
         .order("created_at", desc=True)
     )
-    if tag == "Untagged":
+    if tags and "Untagged" in tags:
         # Embed anti-join: keep only recipes with NO recipe_tags rows.
         query = query.is_("recipe_tags", "null")
-    elif tag:
-        # Two-step filter: name -> tag id -> recipe ids. A filtered !inner
-        # embed would hide the recipe's OTHER tags in the response, so two
-        # plain queries beat one clever one here.
-        tid = _tag_id(client, tag, owner)
-        if tid is None:
-            return []
+    elif tags:
+        # Two-step filter: names -> tag ids -> recipe ids. A filtered !inner
+        # embed would hide the recipe's OTHER tags in the response, so plain
+        # queries + Python beat one clever query here.
+        tag_ids = set()
+        for name in tags:
+            tid = _tag_id(client, name, owner)
+            if tid is None:
+                return []      # unknown tag name -> nothing can match ALL
+            tag_ids.add(tid)
         rows = (
-            client.table("recipe_tags").select("recipe_id").eq("tag_id", tid).execute()
+            client.table("recipe_tags")
+            .select("recipe_id, tag_id")
+            .in_("tag_id", list(tag_ids))
+            .execute()
         )
-        ids = [row["recipe_id"] for row in rows.data]
+        # AND-intersection (PostgREST has no GROUP BY/HAVING): a recipe
+        # qualifies only when it matched every requested tag id.
+        matched: dict[int, set] = {}
+        for row in rows.data:
+            matched.setdefault(row["recipe_id"], set()).add(row["tag_id"])
+        ids = [rid for rid, got in matched.items() if len(got) == len(tag_ids)]
         if not ids:
             return []          # .in_("id", []) would error — short-circuit
         query = query.in_("id", ids)

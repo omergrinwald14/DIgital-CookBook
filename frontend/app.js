@@ -28,7 +28,7 @@ let tagsCache = [];
 // so it stays instant even when the backend is cold.
 let recipesCache = [];
 
-// Track which chip is highlighted, so we can clear it when another is clicked.
+// Track which EXCLUSIVE chip is highlighted (All / collections / Untagged).
 let activeChip = null;
 function setActiveChip(li) {
   if (activeChip) activeChip.classList.remove("active");
@@ -36,13 +36,23 @@ function setActiveChip(li) {
   li.classList.add("active");
 }
 
+// Multi-select filter state: names of the toggled-on tag chips. Combined
+// with AND — a recipe must carry EVERY selected tag. Exclusive chips clear
+// this set; toggling a tag chip clears the exclusive highlight.
+let activeTags = new Set();
+
 // Build one clickable tag chip. If tagId is given, add a ✕ to delete it.
-function makeChip(label, onClick, tagId = null) {
+// exclusive=true chips are single-choice; exclusive=false chips toggle
+// (the handler receives the li to manage its own highlight).
+function makeChip(label, onClick, tagId = null, exclusive = true) {
   const li = document.createElement("li");
   const text = document.createElement("span");
   text.textContent = label;
   li.appendChild(text);
-  li.addEventListener("click", () => { setActiveChip(li); onClick(); });
+  li.addEventListener("click", () => {
+    if (exclusive) setActiveChip(li);
+    onClick(li);
+  });
   if (tagId !== null) {
     const del = document.createElement("button");
     del.className = "chip-delete";
@@ -66,18 +76,40 @@ async function loadTags() {
     const tags = await res.json();
     tagsCache = tags; // keep the cache in sync for card pickers
     list.innerHTML = ""; // clear "Loading…"
-    const all = makeChip("All", () => loadRecipes()); // clears the filter
+    activeTags.clear(); // fresh chips = fresh selection state
+    // Exclusive chips clear any multi-select before applying their filter.
+    const clearTagSelection = () => {
+      activeTags.clear();
+      list.querySelectorAll("li.tag-filter.active")
+        .forEach((li) => li.classList.remove("active"));
+    };
+    const all = makeChip("All", () => { clearTagSelection(); loadRecipes(); });
     list.appendChild(all);
     setActiveChip(all); // "All" highlighted on load
     // Special cross-tag collections (no id -> no delete button).
-    list.appendChild(makeChip("★ Favorites", () => loadRecipes(null, "favorites")));
-    list.appendChild(makeChip("🔖 Up Next", () => loadRecipes(null, "up_next")));
-    const untagged = makeChip("Untagged", () => loadRecipes("Untagged"));
+    list.appendChild(makeChip("★ Favorites",
+      () => { clearTagSelection(); loadRecipes(null, "favorites"); }));
+    list.appendChild(makeChip("🔖 Up Next",
+      () => { clearTagSelection(); loadRecipes(null, "up_next"); }));
+    const untagged = makeChip("Untagged",
+      () => { clearTagSelection(); loadRecipes(["Untagged"]); });
     untagged.classList.add("extra");
     list.appendChild(untagged);
     for (const tag of tags) {
-      const chip = makeChip(tag.name, () => loadRecipes(tag.name), tag.id);
-      chip.classList.add("extra");
+      // Tag chips TOGGLE (multi-select, AND). Turning the last one off
+      // falls back to "All".
+      const chip = makeChip(tag.name, (li) => {
+        if (activeChip) { activeChip.classList.remove("active"); activeChip = null; }
+        const on = li.classList.toggle("active");
+        if (on) activeTags.add(tag.name); else activeTags.delete(tag.name);
+        if (activeTags.size === 0) {
+          setActiveChip(all);
+          loadRecipes();
+        } else {
+          loadRecipes([...activeTags]);
+        }
+      }, tag.id, false);
+      chip.classList.add("extra", "tag-filter");
       list.appendChild(chip);
     }
     // Progressive disclosure: chips past the three pinned ones hide behind
@@ -95,14 +127,15 @@ async function loadTags() {
   }
 }
 
-// Fetch recipes (optionally filtered by tag) and render each as a card.
-async function loadRecipes(tag = null, collection = null) {
+// Fetch recipes (optionally filtered by tags) and render each as a card.
+// `tags` is an array of names; ?tag= repeats and the backend ANDs them.
+async function loadRecipes(tags = null, collection = null) {
   const container = document.getElementById("recipe-list");
   container.textContent = "Loading…";
   try {
-    // Build an encoded query string; filter by tag OR collection.
+    // Build an encoded query string; filter by tags OR collection.
     const params = new URLSearchParams();
-    if (tag) params.set("tag", tag);
+    for (const t of tags || []) params.append("tag", t);
     if (collection) params.set("collection", collection);
     const qs = params.toString();
     const res = await apiFetch(`/recipes${qs ? `?${qs}` : ""}`);

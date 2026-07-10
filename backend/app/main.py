@@ -5,7 +5,7 @@ phone's Share button) can use it. The heavy lifting lives in the imported
 modules; this file just wires them together behind endpoints.
 """
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -134,11 +134,15 @@ def remove_tag(tag_id: int, user: str = Depends(current_user)) -> dict:
 
 @app.get("/recipes")
 def get_recipes(
-    tag: str | None = None,
+    tag: list[str] | None = Query(None),
     collection: str | None = None,
     user: str = Depends(current_user),
 ) -> list[dict]:
-    """List the caller's recipes, filtered by ?tag= or ?collection=."""
+    """List the caller's recipes, filtered by ?collection= or ?tag=.
+
+    ?tag= repeats for multi-select (?tag=A&tag=B) and combines with AND —
+    only recipes carrying every requested tag are returned.
+    """
     return list_recipes(tag, collection, owner=user)
 
 

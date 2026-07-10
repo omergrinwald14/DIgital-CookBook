@@ -163,7 +163,7 @@ the Supabase dashboard SQL editor only.
 - [x] 7-1. Internal rename (Python/JS/HTML names, dict key category→tag) — zero behavior change.
 - [x] 7-2. API rename: /categories→/tags, ?tag=, "Unknown"→"Untagged".
 - [x] 7-3. ⚠ Cutover DDL: rename table categories→tags + column category_id→tag_id; `.table("tags")` commit (brief downtime).
-- [ ] 7-4. DDL: recipe_tags join table (PK recipe_id+tag_id, cascades) + backfill from tag_id.
+- [x] 7-4. DDL: recipe_tags join table (PK recipe_id+tag_id, cascades) + backfill from tag_id (20 = 20 verified).
 - [ ] 7-5. Dual-write: save/update also write recipe_tags (reads unchanged).
 - [ ] 7-6. Switch reads: /recipes embeds a tags list from recipe_tags; "Untagged" = no join rows.
 - [ ] 7-7. PATCH /recipes accepts `tags: [names]` (full replacement).

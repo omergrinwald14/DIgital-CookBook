@@ -75,10 +75,14 @@ class Ingredient(BaseModel):
 
 
 class RecipePatch(BaseModel):
-    """Body for PATCH /recipes/{id} — any subset of fields to update."""
+    """Body for PATCH /recipes/{id} — any subset of fields to update.
+
+    `tags` is a full replacement list of tag names ([] = clear them all);
+    omitting it leaves the recipe's tags untouched.
+    """
     is_favorite: bool | None = None
     is_up_next: bool | None = None
-    tag: str | None = None
+    tags: list[str] | None = None
     title: str | None = None
     ingredients: list[Ingredient] | None = None
     steps: list[str] | None = None
@@ -142,7 +146,7 @@ def get_recipes(
 def patch_recipe(
     recipe_id: int, body: RecipePatch, user: str = Depends(current_user)
 ) -> dict:
-    """Update a recipe: flags, tag, and/or edited title/ingredients/steps."""
+    """Update a recipe: flags, tags, and/or edited title/ingredients/steps."""
     # exclude_unset = only fields the client actually sent, so this 400 check
     # doesn't need updating every time RecipePatch grows a field.
     if not body.model_dump(exclude_unset=True):
@@ -155,7 +159,7 @@ def patch_recipe(
             owner=user,
             is_favorite=body.is_favorite,
             is_up_next=body.is_up_next,
-            tag=body.tag,
+            tags=body.tags,
             title=body.title.strip() if body.title else None,
             ingredients=(
                 [i.model_dump() for i in body.ingredients]

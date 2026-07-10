@@ -274,10 +274,11 @@ function makeTagPicker(recipe) {
       const res = await apiFetch(`/recipes/${recipe.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tag }),
+        // Full-replacement semantics: send the recipe's complete tag list.
+        body: JSON.stringify({ tags: tag === "Untagged" ? [] : [tag] }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      recipe.tags = tag === "Untagged" ? [] : [{ name: tag }];
+      recipe.tags = (await res.json()).tags;
       // Rebuild the picker: a brand-new tag isn't among the options built at
       // render time, so the select would keep showing "＋ New tag…".
       select.replaceWith(makeTagPicker(recipe));

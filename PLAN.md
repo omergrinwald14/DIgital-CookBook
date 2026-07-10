@@ -170,7 +170,7 @@ the Supabase dashboard SQL editor only.
   embed named its FK path explicitly — new tables near old embeds are NOT
   automatically zero-impact.
 - [x] 7-6. Switch reads: /recipes embeds a tags list from recipe_tags; "Untagged" = no join rows.
-- [ ] 7-7. PATCH /recipes accepts `tags: [names]` (full replacement).
+- [x] 7-7. PATCH /recipes accepts `tags: [names]` (full replacement).
 - [ ] 7-8. Card UI: tag chips with × + a "+" picker (replaces the dropdown).
 - [ ] 7-9. Filter chips multi-select: several active tags = recipes with ALL of them.
 - [ ] 7-10. Gemini import returns 1–2 tags; save_recipe writes join rows, stops writing tag_id.

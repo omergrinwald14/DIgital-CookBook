@@ -293,17 +293,17 @@ def update_recipe(
     owner: str,
     is_favorite: bool | None = None,
     is_up_next: bool | None = None,
-    tag: str | None = None,
+    tags: list[str] | None = None,
     title: str | None = None,
     ingredients: list | None = None,
     steps: list | None = None,
 ) -> dict:
-    """Partial-update a recipe and return the updated row.
+    """Partial-update a recipe and return the updated row (with its tags).
 
     Only the fields passed (non-None) are written, so a caller can toggle a
-    collection flag OR reassign the tag independently. `tag` is a
-    NAME, mapped to tag_id here (Untagged / unrecognized name -> null),
-    reusing save_recipe's rule. Keyword-only args prevent positional mix-ups.
+    collection flag OR re-tag independently. `tags` is a full REPLACEMENT
+    list of tag names — [] clears them all; unrecognized names are skipped.
+    Keyword-only args prevent positional mix-ups.
     """
     client = _client()
     updates: dict = {}
@@ -311,37 +311,70 @@ def update_recipe(
         updates["is_favorite"] = is_favorite
     if is_up_next is not None:
         updates["is_up_next"] = is_up_next
-    if tag is not None:
-        updates["tag_id"] = _tag_id(client, tag, owner)
     if title is not None:
         updates["title"] = title
     if ingredients is not None:
         updates["ingredients"] = ingredients   # list -> stored as jsonb
     if steps is not None:
         updates["steps"] = steps               # list -> stored as jsonb
-    if not updates:
+    if not updates and tags is None:
         raise ValueError("no fields to update")
-    result = (
-        client.table("recipes")
-        .update(updates)
-        .eq("id", recipe_id)
-        .eq("owner", owner)
+
+    if updates:
+        result = (
+            client.table("recipes")
+            .update(updates)
+            .eq("id", recipe_id)
+            .eq("owner", owner)
+            .execute()
+        )
+        if not result.data:
+            # LookupError (not HTTPException): storage stays HTTP-agnostic;
+            # the endpoint layer translates this into a 404. Someone else's
+            # recipe id takes this same path — a 404, not a hint it exists.
+            raise LookupError(f"recipe {recipe_id} not found")
+        row = result.data[0]
+    else:
+        # Tags-only PATCH: no row update to prove ownership, so check it
+        # explicitly before touching the join table.
+        found = (
+            client.table("recipes")
+            .select("*")
+            .eq("id", recipe_id)
+            .eq("owner", owner)
+            .limit(1)
+            .execute()
+        )
+        if not found.data:
+            raise LookupError(f"recipe {recipe_id} not found")
+        row = found.data[0]
+
+    if tags is not None:
+        # Full replacement: swap ALL of this recipe's join rows for the new
+        # set. Names are resolved per owner; unknowns and repeats drop out.
+        client.table("recipe_tags").delete().eq("recipe_id", recipe_id).execute()
+        tag_rows, seen = [], set()
+        for name in tags:
+            tid = _tag_id(client, name, owner)
+            if tid is not None and tid not in seen:
+                seen.add(tid)
+                tag_rows.append({"recipe_id": recipe_id, "tag_id": tid})
+        if tag_rows:
+            client.table("recipe_tags").insert(tag_rows).execute()
+
+    # Return a fresh tags list (same shape as list_recipes) so callers can
+    # trust the response instead of guessing what the replacement produced.
+    joined = (
+        client.table("recipe_tags")
+        .select("tags(id, name)")
+        .eq("recipe_id", recipe_id)
         .execute()
     )
-    if not result.data:
-        # LookupError (not HTTPException): storage stays HTTP-agnostic; the
-        # endpoint layer translates this into a 404. Someone else's recipe id
-        # takes this same path — a 404, not a hint that the row exists.
-        raise LookupError(f"recipe {recipe_id} not found")
-    # Dual-write (7-5): a tag change also replaces this recipe's join rows.
-    # Runs only after the owner-scoped update above proved ownership.
-    if tag is not None:
-        client.table("recipe_tags").delete().eq("recipe_id", recipe_id).execute()
-        if updates["tag_id"] is not None:
-            client.table("recipe_tags").insert(
-                {"recipe_id": recipe_id, "tag_id": updates["tag_id"]}
-            ).execute()
-    return result.data[0]
+    row["tags"] = sorted(
+        (j["tags"] for j in joined.data if j.get("tags")),
+        key=lambda t: t["name"],
+    )
+    return row
 
 
 @_synchronized

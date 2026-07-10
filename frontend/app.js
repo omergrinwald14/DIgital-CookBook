@@ -257,10 +257,12 @@ function renderTagChips(recipe) {
     del.title = `Remove "${name}"`;
     del.addEventListener("click", async () => {
       del.disabled = true;
+      chip.classList.add("pending");   // fade NOW; the repaint confirms later
       try {
         await saveTags(names.filter((n) => n !== name));
       } catch (err) {
         alert(`Could not remove tag: ${err.message}`);
+        chip.classList.remove("pending");
         del.disabled = false;
       }
     });

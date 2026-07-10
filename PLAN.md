@@ -169,7 +169,7 @@ the Supabase dashboard SQL editor only.
   ambiguous (PGRST201, two join paths) and broke GET /recipes until the
   embed named its FK path explicitly — new tables near old embeds are NOT
   automatically zero-impact.
-- [ ] 7-6. Switch reads: /recipes embeds a tags list from recipe_tags; "Untagged" = no join rows.
+- [x] 7-6. Switch reads: /recipes embeds a tags list from recipe_tags; "Untagged" = no join rows.
 - [ ] 7-7. PATCH /recipes accepts `tags: [names]` (full replacement).
 - [ ] 7-8. Card UI: tag chips with × + a "+" picker (replaces the dropdown).
 - [ ] 7-9. Filter chips multi-select: several active tags = recipes with ALL of them.

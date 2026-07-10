@@ -146,33 +146,50 @@ def list_recipes(
     """Return one owner's recipes (newest first), optionally filtered.
 
     `owner` scopes every query — users only ever see their own rows (5-3).
-    `tag` filters by tag name (inner join); the special value
-    "Untagged" filters to recipes with no tag (tag_id IS NULL).
-    `collection` filters by a cross-cutting flag: "favorites" -> is_favorite,
-    "up_next" -> is_up_next. The two are independent; used one at a time.
+    `tag` filters by tag name; the special value "Untagged" filters to
+    recipes with no recipe_tags rows. `collection` filters by a
+    cross-cutting flag: "favorites" -> is_favorite, "up_next" ->
+    is_up_next. The two are independent; used one at a time.
+    Each returned recipe carries "tags": a name-sorted list of
+    {id, name} dicts read from the join table (empty list = Untagged).
     """
     client = _client()
-    # Inner join only when filtering by a real tag; left join otherwise so
-    # Untagged (null-tag) recipes still appear.
-    # recipe_tags gives PostgREST a SECOND path from recipes to tags, so the
-    # embed must name the FK explicitly or it 400s as ambiguous (PGRST201).
-    # The constraint kept its pre-rename name; this embed dies in 7-6 anyway.
-    if tag and tag != "Untagged":
-        join = "tags!recipes_category_id_fkey!inner(name)"
-    else:
-        join = "tags!recipes_category_id_fkey(name)"
-    query = client.table("recipes").select(f"*, {join}").eq("owner", owner).order(
-        "created_at", desc=True
+    query = (
+        client.table("recipes")
+        .select("*, recipe_tags(tags(id, name))")
+        .eq("owner", owner)
+        .order("created_at", desc=True)
     )
     if tag == "Untagged":
-        query = query.is_("tag_id", "null")   # the untagged bucket
+        # Embed anti-join: keep only recipes with NO recipe_tags rows.
+        query = query.is_("recipe_tags", "null")
     elif tag:
-        query = query.eq("tags.name", tag)
+        # Two-step filter: name -> tag id -> recipe ids. A filtered !inner
+        # embed would hide the recipe's OTHER tags in the response, so two
+        # plain queries beat one clever one here.
+        tid = _tag_id(client, tag, owner)
+        if tid is None:
+            return []
+        rows = (
+            client.table("recipe_tags").select("recipe_id").eq("tag_id", tid).execute()
+        )
+        ids = [row["recipe_id"] for row in rows.data]
+        if not ids:
+            return []          # .in_("id", []) would error — short-circuit
+        query = query.in_("id", ids)
     if collection == "favorites":
         query = query.eq("is_favorite", True)
     elif collection == "up_next":
         query = query.eq("is_up_next", True)
-    return query.execute().data
+    recipes = query.execute().data
+    # Flatten the nested embed ([{tags: {id, name}}, ...]) into a simple
+    # name-sorted list the frontend reads as recipe.tags.
+    for r in recipes:
+        r["tags"] = sorted(
+            (rt["tags"] for rt in r.pop("recipe_tags", []) if rt.get("tags")),
+            key=lambda t: t["name"],
+        )
+    return recipes
 
 
 def store_thumbnail(source_url: str, thumbnail_url: str | None) -> str | None:

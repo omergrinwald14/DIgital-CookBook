@@ -28,6 +28,10 @@ let tagsCache = [];
 // so it stays instant even when the backend is cold.
 let recipesCache = [];
 
+// The server-side filter behind the current list, remembered so widgets can
+// re-apply it after changing a recipe (e.g. untagging while filtered).
+let currentFilter = { tags: null, collection: null };
+
 // Track which EXCLUSIVE chip is highlighted (All / collections / Untagged).
 let activeChip = null;
 function setActiveChip(li) {
@@ -130,6 +134,7 @@ async function loadTags() {
 // Fetch recipes (optionally filtered by tags) and render each as a card.
 // `tags` is an array of names; ?tag= repeats and the backend ANDs them.
 async function loadRecipes(tags = null, collection = null) {
+  currentFilter = { tags, collection };
   const container = document.getElementById("recipe-list");
   container.textContent = "Loading…";
   try {
@@ -275,7 +280,13 @@ function renderTagChips(recipe) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     recipe.tags = (await res.json()).tags;
-    wrap.replaceWith(renderTagChips(recipe));
+    // A tag change can add/remove this card from a tag-filtered view (incl.
+    // "Untagged"), so refetch the list; otherwise repaint just this widget.
+    if (currentFilter.tags?.length) {
+      await loadRecipes(currentFilter.tags, currentFilter.collection);
+    } else {
+      wrap.replaceWith(renderTagChips(recipe));
+    }
   }
 
   for (const name of names) {

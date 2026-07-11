@@ -2,8 +2,8 @@
 
 This module isolates all LLM logic. It receives the messy caption text plus the
 user's fixed tag list, and returns clean structured JSON:
-ingredients (name/quantity/unit), ordered steps, a title, and a tag that is
-ALWAYS one of the allowed tags (or "Unknown").
+ingredients (name/quantity/unit), ordered steps, a title, and 1-2 tags that
+are ALWAYS drawn from the allowed list ([] when none fits).
 """
 
 import json
@@ -33,8 +33,9 @@ From the caption below, extract:
 - "title": a short dish name (string)
 - "ingredients": a list of objects, each {{"name": str, "quantity": number or null, "unit": str or null}}
 - "steps": an ordered list of short instruction strings
-- "tag": EXACTLY ONE of these allowed tags: [{tag_list}].
-  If none clearly fits, use "Unknown".
+- "tags": a JSON array of 1 or 2 tag names chosen ONLY from this allowed
+  list: [{tag_list}]. If only one clearly fits, return just that one.
+  If none clearly fits, return [].
 
 Rules:
 - Return ONLY valid JSON, no commentary.
@@ -42,10 +43,10 @@ Rules:
   as the caption. Do NOT translate the recipe content.
 - TAG MATCHING: the allowed tag names above may be written in a
   different language than the caption. Match by MEANING (translate mentally),
-  then output the tag string EXACTLY as it appears in the allowed list.
+  then output each tag string EXACTLY as it appears in the allowed list.
   Example: a Hebrew caption "קציצות בקר" matches the allowed tag "Meatballs".
 - If the caption contains no actual recipe, return:
-  {{"title": null, "ingredients": null, "steps": null, "tag": "Unknown"}}
+  {{"title": null, "ingredients": null, "steps": null, "tags": []}}
 
 CAPTION:
 \"\"\"{caption}\"\"\"
@@ -60,15 +61,15 @@ def parse_recipe(caption: str, tags: list[str]) -> dict:
         tags: The user's fixed tag list (e.g. ["Pasta", "Soup"]).
 
     Returns:
-        Dict with keys: title, ingredients, steps, tag. The tag is
-        guaranteed to be one of `tags` or "Unknown".
+        Dict with keys: title, ingredients, steps, tags. The tags list holds
+        at most 2 names, every one guaranteed to be from `tags` ([] = none fit).
     """
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY is missing. Add it to backend/.env")
 
     if not caption:
-        # No caption to parse → follow the Unknown/null fallback rule.
-        return {"title": None, "ingredients": None, "steps": None, "tag": "Unknown"}
+        # No caption to parse → follow the no-tags/null fallback rule.
+        return {"title": None, "ingredients": None, "steps": None, "tags": []}
 
     client = genai.Client(api_key=GEMINI_API_KEY)
     response = client.models.generate_content(
@@ -86,11 +87,12 @@ def parse_recipe(caption: str, tags: list[str]) -> dict:
     except json.JSONDecodeError:
         data = None
     if not isinstance(data, dict):
-        return {"title": None, "ingredients": None, "steps": None, "tag": "Unknown"}
+        return {"title": None, "ingredients": None, "steps": None, "tags": []}
 
-    # Safety net: enforce our rule even if the model strays.
-    if data.get("tag") not in tags:
-        data["tag"] = "Unknown"
+    # Safety net: enforce our rules even if the model strays — members of
+    # the allowed list only, at most 2, [] for anything malformed.
+    raw = data.get("tags")
+    data["tags"] = [t for t in raw if t in tags][:2] if isinstance(raw, list) else []
 
     return data
 

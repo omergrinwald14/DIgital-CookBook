@@ -265,7 +265,7 @@ def save_recipe(recipe: dict, *, owner: str) -> dict:
     (RLock, so the nested find_recipe_by_url call is fine).
 
     Args:
-        recipe: dict with title, tag (name), ingredients, steps,
+        recipe: dict with title, tags (list of names), ingredients, steps,
                 source_url, thumbnail — the shape returned by POST /import.
         owner:  the saving user's identity, stamped onto the row.
     """
@@ -279,7 +279,6 @@ def save_recipe(recipe: dict, *, owner: str) -> dict:
 
     row = {
         "title": recipe.get("title"),
-        "tag_id": _tag_id(client, recipe.get("tag"), owner),
         "source_url": recipe.get("source_url"),
         "thumbnail": recipe.get("thumbnail"),
         "ingredients": recipe.get("ingredients"),  # list -> stored as jsonb
@@ -288,12 +287,16 @@ def save_recipe(recipe: dict, *, owner: str) -> dict:
     }
     result = client.table("recipes").insert(row).execute()
     stored = result.data[0]
-    # Dual-write (7-5): mirror the tag into recipe_tags so the join table
-    # stays in sync while reads still come from recipes.tag_id.
-    if stored.get("tag_id") is not None:
-        client.table("recipe_tags").insert(
-            {"recipe_id": stored["id"], "tag_id": stored["tag_id"]}
-        ).execute()
+    # Tags land ONLY in the join table now (7-10); recipes.tag_id is dead
+    # weight until 7-11 drops it. Unknown names and repeats drop out.
+    tag_rows, seen = [], set()
+    for name in recipe.get("tags") or []:
+        tid = _tag_id(client, name, owner)
+        if tid is not None and tid not in seen:
+            seen.add(tid)
+            tag_rows.append({"recipe_id": stored["id"], "tag_id": tid})
+    if tag_rows:
+        client.table("recipe_tags").insert(tag_rows).execute()
     return stored
 
 
@@ -422,7 +425,7 @@ if __name__ == "__main__":
 
     sample = {
         "title": "Test — Spaghetti alla Nerano",
-        "tag": "Pasta",
+        "tags": ["Pasta"],
         "ingredients": [{"name": "Spaghetti", "quantity": 320, "unit": "g"}],
         "steps": ["Fry zucchini.", "Cook pasta.", "Toss with provolone."],
         "source_url": "https://www.instagram.com/reel/DZ1ydoFKh1p/",

@@ -237,7 +237,7 @@ def import_recipe(body: ImportRequest, user: str = Depends(current_user)) -> dic
     # Merge the two sources: parsed recipe fields + fetch metadata (link/thumb).
     merged = {
         "title": recipe.get("title") or meta.get("title"),
-        "tag": recipe.get("tag"),
+        "tags": recipe.get("tags"),
         "ingredients": recipe.get("ingredients"),
         "steps": recipe.get("steps"),
         "source_url": meta.get("source_url"),

@@ -32,31 +32,22 @@ let recipesCache = [];
 // re-apply it after changing a recipe (e.g. untagging while filtered).
 let currentFilter = { tags: null, collection: null };
 
-// Track which EXCLUSIVE chip is highlighted (All / collections / Untagged).
-let activeChip = null;
-function setActiveChip(li) {
-  if (activeChip) activeChip.classList.remove("active");
-  activeChip = li;
-  li.classList.add("active");
-}
-
-// Multi-select filter state: names of the toggled-on tag chips. Combined
-// with AND — a recipe must carry EVERY selected tag. Exclusive chips clear
-// this set; toggling a tag chip clears the exclusive highlight.
+// Filter state. Tags AND-combine with each other and with ONE collection
+// (Favorites/Up Next toggle each other off — the backend takes one).
+// "Untagged" is a pseudo-tag: it excludes real tag picks but pairs with a
+// collection. "All" is just "no filters".
 let activeTags = new Set();
+let activeCollection = null;   // "favorites" | "up_next" | null
+let untaggedOn = false;
 
-// Build one clickable tag chip. If tagId is given, add a ✕ to delete it.
-// exclusive=true chips are single-choice; exclusive=false chips toggle
-// (the handler receives the li to manage its own highlight).
-function makeChip(label, onClick, tagId = null, exclusive = true) {
+// Build one clickable tag chip that hands its li to the handler (each chip
+// manages its own highlight). If tagId is given, add a ✕ to delete it.
+function makeChip(label, onClick, tagId = null) {
   const li = document.createElement("li");
   const text = document.createElement("span");
   text.textContent = label;
   li.appendChild(text);
-  li.addEventListener("click", () => {
-    if (exclusive) setActiveChip(li);
-    onClick(li);
-  });
+  li.addEventListener("click", () => onClick(li));
   if (tagId !== null) {
     const del = document.createElement("button");
     del.className = "chip-delete";
@@ -81,38 +72,63 @@ async function loadTags() {
     tagsCache = tags; // keep the cache in sync for card pickers
     list.innerHTML = ""; // clear "Loading…"
     activeTags.clear(); // fresh chips = fresh selection state
-    // Exclusive chips clear any multi-select before applying their filter.
-    const clearTagSelection = () => {
-      activeTags.clear();
-      list.querySelectorAll("li.tag-filter.active")
-        .forEach((li) => li.classList.remove("active"));
+    activeCollection = null;
+    untaggedOn = false;
+
+    // One place recomputes the query from the toggle states; "All" lights
+    // up only when nothing is filtered.
+    const refresh = () => {
+      const noFilter = !activeTags.size && !activeCollection && !untaggedOn;
+      all.classList.toggle("active", noFilter);
+      const names = untaggedOn ? ["Untagged"] : [...activeTags];
+      loadRecipes(names.length ? names : null, activeCollection);
     };
-    const all = makeChip("All", () => { clearTagSelection(); loadRecipes(); });
+
+    const all = makeChip("All", () => {
+      activeTags.clear(); activeCollection = null; untaggedOn = false;
+      list.querySelectorAll("li.active").forEach((li) => li.classList.remove("active"));
+      refresh();
+    });
     list.appendChild(all);
-    setActiveChip(all); // "All" highlighted on load
-    // Special cross-tag collections (no id -> no delete button).
-    list.appendChild(makeChip("★ Favorites",
-      () => { clearTagSelection(); loadRecipes(null, "favorites"); }));
-    list.appendChild(makeChip("🔖 Up Next",
-      () => { clearTagSelection(); loadRecipes(null, "up_next"); }));
-    const untagged = makeChip("Untagged",
-      () => { clearTagSelection(); loadRecipes(["Untagged"]); });
+    all.classList.add("active"); // "All" highlighted on load
+    // Cross-tag collections: toggles, one at a time, combinable with tags.
+    const fav = makeChip("★ Favorites", (li) => {
+      activeCollection = li.classList.toggle("active") ? "favorites" : null;
+      if (activeCollection) upNext.classList.remove("active");
+      refresh();
+    });
+    const upNext = makeChip("🔖 Up Next", (li) => {
+      activeCollection = li.classList.toggle("active") ? "up_next" : null;
+      if (activeCollection) fav.classList.remove("active");
+      refresh();
+    });
+    list.append(fav, upNext);
+    const untagged = makeChip("Untagged", (li) => {
+      untaggedOn = li.classList.toggle("active");
+      if (untaggedOn) {
+        // Untagged replaces any real-tag selection (they can't co-match).
+        activeTags.clear();
+        list.querySelectorAll("li.tag-filter.active")
+          .forEach((c) => c.classList.remove("active"));
+      }
+      refresh();
+    });
     untagged.classList.add("extra");
     list.appendChild(untagged);
     for (const tag of tags) {
-      // Tag chips TOGGLE (multi-select, AND). Turning the last one off
+      // Tag chips TOGGLE (multi-select, AND). Turning the last filter off
       // falls back to "All".
       const chip = makeChip(tag.name, (li) => {
-        if (activeChip) { activeChip.classList.remove("active"); activeChip = null; }
         const on = li.classList.toggle("active");
-        if (on) activeTags.add(tag.name); else activeTags.delete(tag.name);
-        if (activeTags.size === 0) {
-          setActiveChip(all);
-          loadRecipes();
+        if (on) {
+          activeTags.add(tag.name);
+          untaggedOn = false;
+          untagged.classList.remove("active");
         } else {
-          loadRecipes([...activeTags]);
+          activeTags.delete(tag.name);
         }
-      }, tag.id, false);
+        refresh();
+      }, tag.id);
       chip.classList.add("extra", "tag-filter");
       list.appendChild(chip);
     }

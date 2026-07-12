@@ -180,7 +180,7 @@ the Supabase dashboard SQL editor only.
 Type a recipe in by hand: title, ingredients, steps; optional cover photo.
 - [x] 8-1. Backend: `POST /recipes` — create a recipe directly (no import);
   reuses save_recipe; `source_url` null (DDL: dropped NOT NULL on source_url).
-- [ ] 8-2. Frontend: "+ Add recipe" form — title, ingredients + steps as
+- [x] 8-2. Frontend: "+ Add recipe" form — title, ingredients + steps as
   plain text lines (same shape as the edit form).
 - [ ] 8-3. Cover photo: Supabase Storage bucket (free tier) — upload from the
   form, store the public URL in `thumbnail`.

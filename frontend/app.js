@@ -196,6 +196,9 @@ function applySearch(recipes) {
 document.getElementById("search-box").addEventListener("input",
   () => renderRecipes(applySearch(recipesCache)));
 
+// Split a textarea into trimmed, non-empty lines (edit form + manual entry).
+const toLines = (s) => s.split("\n").map((l) => l.trim()).filter(Boolean);
+
 // Format one ingredient: "320 g Spaghetti", "2 cloves Garlic", or just
 // "Olive oil" when quantity/unit are null. filter(Boolean) drops the blanks.
 function formatIngredient(ing) {
@@ -529,7 +532,6 @@ function renderEditForm(recipe) {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const toLines = (s) => s.split("\n").map((l) => l.trim()).filter(Boolean);
     const body = {
       title: titleIn.value.trim(),
       ingredients: toLines(ingIn.value).map((name) => ({ name, quantity: null, unit: null })),
@@ -609,6 +611,47 @@ async function importRecipe(event) {
 }
 
 document.getElementById("import-form").addEventListener("submit", importRecipe);
+
+// Manual entry (8-2): the toggle reveals a form; submit POSTs /recipes.
+const manualForm = document.getElementById("manual-form");
+document.getElementById("manual-toggle").addEventListener("click", () => {
+  manualForm.hidden = !manualForm.hidden;
+});
+document.getElementById("manual-cancel").addEventListener("click", () => {
+  manualForm.reset();
+  manualForm.hidden = true;
+});
+manualForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const status = document.getElementById("import-status");
+  const title = document.getElementById("manual-title").value.trim();
+  if (!title) return;                    // required attr guards; belt+braces
+  const body = {
+    title,
+    ingredients: toLines(document.getElementById("manual-ingredients").value)
+      .map((name) => ({ name, quantity: null, unit: null })),
+    steps: toLines(document.getElementById("manual-steps").value),
+  };
+  const save = manualForm.querySelector('button[type="submit"]');
+  save.disabled = true;
+  try {
+    const res = await apiFetch("/recipes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    manualForm.reset();
+    manualForm.hidden = true;
+    status.hidden = false;
+    status.textContent = `Added: ${title}`;
+    await loadRecipes();
+  } catch (err) {
+    alert(`Could not save: ${err.message}`);
+  } finally {
+    save.disabled = false;
+  }
+});
 
 // Remove a tag (after confirm), then refresh chips + recipes.
 async function deleteTag(id, label) {

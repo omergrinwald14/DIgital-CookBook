@@ -91,6 +91,22 @@
         <button type="submit">Import</button>
       </form>
       <p id="import-status" hidden></p>
+      <button type="button" id="manual-toggle">✎ Or create one yourself</button>
+      <form id="manual-form" class="edit-form" hidden>
+        <label>Title
+          <input id="manual-title" type="text" dir="auto" required />
+        </label>
+        <label>Ingredients (one per line)
+          <textarea id="manual-ingredients" rows="6" dir="auto"></textarea>
+        </label>
+        <label>Steps (one per line)
+          <textarea id="manual-steps" rows="8" dir="auto"></textarea>
+        </label>
+        <div class="edit-buttons">
+          <button type="submit">Save recipe</button>
+          <button type="button" id="manual-cancel">Cancel</button>
+        </div>
+      </form>
     </section>
 
     <p id="pending-shares" hidden></p>

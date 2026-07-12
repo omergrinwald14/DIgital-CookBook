@@ -192,7 +192,7 @@ the Supabase dashboard SQL editor only.
 - [ ] 5-3f frontend — delete-user button in the app.
 - [ ] Require `X-User`: drop the `DEFAULT_OWNER` fallback + lowercase the header
   server-side (only after every phone has logged in / Shortcut updated).
-- [ ] (after Phase 7) Search also matches tag names — one-liner in `applySearch`.
+- [x] (after Phase 7) Search also matches tag names — one-liner in `applySearch`.
 - [ ] (after Phase 7) `/import` duplicate response (`find_recipe_by_url`) doesn't
   embed tags — harmless; embed if a client ever needs it.
 

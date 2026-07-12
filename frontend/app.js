@@ -181,13 +181,14 @@ function renderRecipes(recipes) {
   }
 }
 
-// Narrow a recipe list by the search box: match title or ingredient names.
+// Narrow a recipe list by the search box: match title, ingredient, or tag names.
 function applySearch(recipes) {
   const q = document.getElementById("search-box").value.trim().toLowerCase();
   if (!q) return recipes;
   return recipes.filter((r) =>
     (r.title || "").toLowerCase().includes(q) ||
-    (r.ingredients || []).some((i) => (i.name || "").toLowerCase().includes(q))
+    (r.ingredients || []).some((i) => (i.name || "").toLowerCase().includes(q)) ||
+    (r.tags || []).some((t) => (t.name || "").toLowerCase().includes(q))
   );
 }
 

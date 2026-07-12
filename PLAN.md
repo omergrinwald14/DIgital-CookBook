@@ -182,8 +182,9 @@ Type a recipe in by hand: title, ingredients, steps; optional cover photo.
   reuses save_recipe; `source_url` null (DDL: dropped NOT NULL on source_url).
 - [x] 8-2. Frontend: "+ Add recipe" form — title, ingredients + steps as
   plain text lines (same shape as the edit form).
-- [ ] 8-3. Cover photo: Supabase Storage bucket (free tier) — upload from the
-  form, store the public URL in `thumbnail`.
+- [x] 8-3. Cover photo: reuses the existing `thumbnails` bucket —
+  `POST /recipes/{id}/photo` (multipart) + file picker in the form; public
+  URL lands in `thumbnail`. Phase 8 complete.
 
 **Phase 9 — Share recipes between users:**
 Send a recipe to another user; they see it on a "Shared with me" screen and

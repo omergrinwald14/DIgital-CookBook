@@ -641,6 +641,16 @@ manualForm.addEventListener("submit", async (e) => {
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rec = await res.json();
+    const photo = document.getElementById("manual-photo").files[0];
+    if (photo) {
+      // FormData = the browser's multipart encoding; no manual Content-Type
+      // header, or the boundary marker is lost and the upload breaks.
+      const fd = new FormData();
+      fd.append("photo", photo);
+      const up = await apiFetch(`/recipes/${rec.id}/photo`, { method: "POST", body: fd });
+      if (!up.ok) alert("Recipe saved, but the photo upload failed.");
+    }
     manualForm.reset();
     manualForm.hidden = true;
     status.hidden = false;

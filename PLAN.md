@@ -176,15 +176,29 @@ the Supabase dashboard SQL editor only.
 - [x] 7-10. Gemini import returns 1–2 tags; save_recipe writes join rows, stops writing tag_id.
 - [ ] 7-11. ⚠ Contract: drop recipes.tag_id; remove the detach step in delete_tag; rewrite Data model section here.
 
+**Phase 8 — Manual recipe entry (no video source):**
+Type a recipe in by hand: title, ingredients, steps; optional cover photo.
+- [ ] 8-1. Backend: `POST /recipes` — create a recipe directly (no import);
+  reuses save_recipe; `source_url` null.
+- [ ] 8-2. Frontend: "+ Add recipe" form — title, ingredients + steps as
+  plain text lines (same shape as the edit form).
+- [ ] 8-3. Cover photo: Supabase Storage bucket (free tier) — upload from the
+  form, store the public URL in `thumbnail`.
+
+**Phase 9 — Share recipes between users:**
+Send a recipe to another user; they see it on a "Shared with me" screen and
+choose to add it (copy into their cookbook) or dismiss.
+- [ ] 9-1. Data model: `shared_recipes(id, recipe_id, from_owner, to_owner,
+  status, created_at)` — pending/accepted/dismissed.
+- [ ] 9-2. Backend: `POST /recipes/{id}/share` (to_owner email),
+  `GET /shared`, `POST /shared/{id}/accept` (copies the recipe), dismiss.
+- [ ] 9-3. Frontend: share button on the card + "Shared with me" screen
+  with add/dismiss.
+
 ## TODO backlog — pick a task when time is convenient
 > Not scheduled; grab one when there's a free moment. New "later" items land here.
-- [ ] **Cold-start drill (one Android):** pause the cron-job.org keep-warm job →
-  wait ~20 min (server sleeps) → share a video → do **not** open the app →
-  recipe should land within ~3 min (SW v5 in-event retries) → unpause the job.
-- [ ] **Full share matrix (all devices):** on every family device (Omer Android,
-  family Android, Omer iPhone, sister's iPhone once 5-3g is done) share one video
-  warm + one cold; verify each lands under the right owner; on Androids confirm
-  `/sw-version` = `v5 cold-start-retry` first.
+- ~~Cold-start drill~~ / ~~full share matrix~~ — dropped 2026-07-12: server is
+  always up now, cold-start scenarios no longer apply.
 - [x] 5-3g — shareable iOS Shortcut for sister (iCloud link; per-person email).
   DONE 2026-07-08: tested iCloud link is now published inside the in-app
   install guide (d9b7a9d) — header "How to install" + login-screen link,

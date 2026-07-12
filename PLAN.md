@@ -223,6 +223,10 @@ personal contact list (no approval); share picker = friends drop-list +
 - [x] (after Phase 7) Search also matches tag names — one-liner in `applySearch`.
 - [ ] (after Phase 7) `/import` duplicate response (`find_recipe_by_url`) doesn't
   embed tags — harmless; embed if a client ever needs it.
+- [ ] Claim legacy NULL-owner rows in recipes/tags (assign to Omer) — currently
+  invisible to the app; discovered during the 9-2 users backfill.
+- [ ] `delete_user`: also clear `shared_recipes` where to_owner = the deleted
+  user (pending offers from others become harmless orphan rows today).
 
 ## Risks
 - **Instagram fetch is free but unofficial.** yt-dlp can break when Instagram changes;

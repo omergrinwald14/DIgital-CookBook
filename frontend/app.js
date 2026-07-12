@@ -745,6 +745,7 @@ document.getElementById("login-form").addEventListener("submit", (e) => {
   const email = document.getElementById("login-email").value.trim().toLowerCase();
   if (!email) return;
   localStorage.setItem(USER_KEY, email);
+  apiFetch("/users", { method: "POST" }).catch(() => {}); // fire-and-forget
   loginScreen.hidden = true;
   showUserBadge(email);
   boot();

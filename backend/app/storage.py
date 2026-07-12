@@ -439,6 +439,86 @@ def delete_recipe(recipe_id: int, *, owner: str) -> None:
     client.table("recipes").delete().eq("id", recipe_id).eq("owner", owner).execute()
 
 
+@_synchronized
+def register_user(email: str) -> dict:
+    """Upsert EMAIL into the users registry (idempotent — login calls this)."""
+    result = _client().table("users").upsert(
+        {"email": email}, on_conflict="email"
+    ).execute()
+    return result.data[0]
+
+
+@_synchronized
+def share_recipe(recipe_id: int, *, from_owner: str, to_owner: str) -> dict:
+    """Offer one of FROM_OWNER's recipes to TO_OWNER (status: pending).
+
+    Upsert on (recipe_id, to_owner): re-sharing revives a dismissed offer
+    instead of stacking duplicate rows.
+    """
+    client = _client()
+    found = (client.table("recipes").select("id")
+             .eq("id", recipe_id).eq("owner", from_owner).execute())
+    if not found.data:
+        raise LookupError(f"Recipe {recipe_id} not found")
+    result = client.table("shared_recipes").upsert(
+        {"recipe_id": recipe_id, "from_owner": from_owner,
+         "to_owner": to_owner, "status": "pending"},
+        on_conflict="recipe_id,to_owner",
+    ).execute()
+    return result.data[0]
+
+
+@_synchronized
+def list_shares(*, owner: str) -> list[dict]:
+    """Pending share offers for OWNER, each with a preview of the recipe."""
+    result = (
+        _client().table("shared_recipes")
+        .select("id, from_owner, created_at,"
+                " recipes(title, thumbnail, ingredients, steps)")
+        .eq("to_owner", owner)
+        .eq("status", "pending")
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return result.data
+
+
+@_synchronized
+def resolve_share(share_id: int, *, owner: str, accept: bool) -> dict:
+    """Accept (copy the recipe into OWNER's cookbook) or dismiss an offer.
+
+    The copy goes through save_recipe, so URL-dedupe applies and tags map
+    by name (names the recipient doesn't own are skipped).
+    """
+    client = _client()
+    found = (client.table("shared_recipes").select("*")
+             .eq("id", share_id).eq("to_owner", owner)
+             .eq("status", "pending").execute())
+    if not found.data:
+        raise LookupError(f"Share {share_id} not found")
+    share = found.data[0]
+    copied = None
+    if accept:
+        src = (client.table("recipes").select("*, recipe_tags(tags(name))")
+               .eq("id", share["recipe_id"]).execute()).data[0]
+        copied = save_recipe(
+            {
+                "title": src["title"],
+                "source_url": src["source_url"],
+                "thumbnail": src["thumbnail"],
+                "ingredients": src["ingredients"],
+                "steps": src["steps"],
+                "tags": [rt["tags"]["name"] for rt in src["recipe_tags"]
+                         if rt.get("tags")],
+            },
+            owner=owner,
+        )
+    client.table("shared_recipes").update(
+        {"status": "accepted" if accept else "dismissed"}
+    ).eq("id", share_id).execute()
+    return copied or {"status": "dismissed", "id": share_id}
+
+
 # Direct test:  py app/storage.py  — inserts one sample recipe.
 if __name__ == "__main__":
     import json

@@ -186,16 +186,24 @@ Type a recipe in by hand: title, ingredients, steps; optional cover photo.
   `POST /recipes/{id}/photo` (multipart) + file picker in the form; public
   URL lands in `thumbnail`. Phase 8 complete.
 
-**Phase 9 — Share recipes between users:**
-Send a recipe to another user; they see it on a "Shared with me" screen and
-choose to add it (copy into their cookbook) or dismiss.
+**Phase 9 — Share recipes between users (mini social network):**
+Share a recipe to a friend; they see it on a "Shared with me" screen and
+choose to add it (copy into their cookbook) or dismiss. Friends = one-way
+personal contact list (no approval); share picker = friends drop-list +
+"someone else" by email — which must be a registered user (typo → error).
 - [x] 9-1. Data model: `shared_recipes(id, recipe_id, from_owner, to_owner,
   status, created_at)` — pending/accepted/dismissed; unique (recipe_id,
   to_owner); cascade on recipe delete. Live embeds verified intact.
-- [ ] 9-2. Backend: `POST /recipes/{id}/share` (to_owner email),
-  `GET /shared`, `POST /shared/{id}/accept` (copies the recipe), dismiss.
-- [ ] 9-3. Frontend: share button on the card + "Shared with me" screen
-  with add/dismiss.
+- [x] 9-2. Users registry: `users(email pk)` — login upserts it (POST
+  /users); backfilled 4 existing owners. Enables recipient validation.
+- [ ] 9-3. Friends: `friends(owner, friend_email)` + GET/POST/DELETE
+  /friends; POST validates the friend is a registered user.
+- [ ] 9-4. Share endpoints: POST /recipes/{id}/share (recipient must be
+  registered; auto-adds to friends), GET /shared, accept + dismiss.
+  (Storage layer already written in 9-2a: share/list/resolve.)
+- [ ] 9-5. Frontend: share button on the card — friends drop-list +
+  "someone else…" email entry (unknown email = clear error).
+- [ ] 9-6. Frontend: "Shared with me" screen with add/dismiss.
 
 ## TODO backlog — pick a task when time is convenient
 > Not scheduled; grab one when there's a free moment. New "later" items land here.

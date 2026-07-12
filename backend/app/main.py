@@ -22,6 +22,7 @@ from app.storage import (
     find_recipe_by_url,
     list_recipes,
     list_tags,
+    register_user,
     save_recipe,
     set_recipe_photo,
     store_thumbnail,
@@ -225,6 +226,12 @@ def remove_recipe(recipe_id: int, user: str = Depends(current_user)) -> dict:
     """Delete one of the caller's recipes by id."""
     delete_recipe(recipe_id, owner=user)
     return {"status": "deleted", "id": recipe_id}
+
+
+@app.post("/users", status_code=201)
+def add_user(user: str = Depends(current_user)) -> dict:
+    """Register the caller in the users registry (called at login)."""
+    return register_user(user.lower())
 
 
 @app.delete("/users/{email}")

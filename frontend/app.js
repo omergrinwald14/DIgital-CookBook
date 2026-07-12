@@ -751,6 +751,63 @@ async function deleteTag(id, label) {
   }
 }
 
+// Shared-with-me inbox (9-6): pending offers land here. Add copies the
+// recipe into this cookbook, Dismiss declines. Hidden when empty.
+async function loadSharedInbox() {
+  const section = document.getElementById("shared-inbox");
+  const list = document.getElementById("shared-list");
+  let offers = [];
+  try {
+    const res = await apiFetch("/shared");
+    if (res.ok) offers = await res.json();
+  } catch { /* offline — leave the section hidden */ }
+  section.hidden = offers.length === 0;
+  list.innerHTML = "";
+  for (const offer of offers) list.appendChild(renderOffer(offer));
+}
+
+function renderOffer(offer) {
+  const row = document.createElement("div");
+  row.className = "shared-offer";
+  if (offer.recipes?.thumbnail) {
+    const img = document.createElement("img");
+    img.referrerPolicy = "no-referrer";
+    img.src = offer.recipes.thumbnail;
+    img.alt = "";
+    row.appendChild(img);
+  }
+  const text = document.createElement("span");
+  text.className = "offer-title";
+  text.dir = "auto";
+  text.textContent = `${offer.recipes?.title || "Untitled"} — from ${offer.from_owner}`;
+  row.appendChild(text);
+
+  // One handler for both buttons: hit the endpoint, repaint the inbox.
+  function actionButton(label, cls, path, refreshRecipes) {
+    const btn = document.createElement("button");
+    btn.className = cls;
+    btn.textContent = label;
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      row.classList.add("pending");   // fade NOW; the repaint confirms later
+      try {
+        const res = await apiFetch(`/shared/${offer.id}/${path}`, { method: "POST" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await loadSharedInbox();
+        if (refreshRecipes) await loadRecipes();
+      } catch (err) {
+        alert(`Could not ${label.toLowerCase()}: ${err.message}`);
+        row.classList.remove("pending");
+        btn.disabled = false;
+      }
+    });
+    return btn;
+  }
+  row.appendChild(actionButton("Add", "offer-add", "accept", true));
+  row.appendChild(actionButton("Dismiss", "offer-dismiss", "dismiss", false));
+  return row;
+}
+
 // Deliver queued shares from the page. Background Sync alone proved
 // unreliable: Chrome stops retrying after ~3 attempts, and each attempt can
 // die against Render's ~50s cold start — entries then sit in IndexedDB
@@ -794,7 +851,7 @@ async function drainPendingShares() {
 // before the (possibly slow, cold-start) queue drain so the app is usable
 // immediately.
 function boot() {
-  loadTags().then(loadRecipes).then(drainPendingShares);
+  loadTags().then(loadRecipes).then(drainPendingShares).then(loadSharedInbox);
 }
 
 // Login gate (5-3c): with a stored identity, boot straight in; without one,

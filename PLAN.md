@@ -205,7 +205,9 @@ personal contact list (no approval); share picker = friends drop-list +
   names skipped) + /dismiss. Full round-trip + guards proven via TestClient.
 - [x] 9-5. Frontend: ↗ on the card swaps into a picker — friends drop-list
   + "someone else…" email entry (unknown email = backend's 404 message).
-- [ ] 9-6. Frontend: "Shared with me" screen with add/dismiss.
+- [x] 9-6. Frontend: "Shared with me" inbox above Tags (hidden when empty);
+  Add copies + refreshes the list, Dismiss declines; rows fade while the
+  round-trip is in flight. Phase 9 complete — proven with two real accounts.
 
 ## TODO backlog — pick a task when time is convenient
 > Not scheduled; grab one when there's a free moment. New "later" items land here.

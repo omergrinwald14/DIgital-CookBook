@@ -407,6 +407,80 @@ function renderTagChips(recipe) {
   return wrap;
 }
 
+// Share (9-5): ↗ swaps into a picker — friends drop-list + "someone else…"
+// by email. The backend validates the recipient (404 for an unknown email)
+// and auto-adds new recipients to the friends list for next time.
+function makeShareButton(recipe) {
+  const btn = document.createElement("button");
+  btn.className = "flag-toggle";
+  btn.textContent = "↗";
+  btn.title = "Share recipe";
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();                  // don't expand the card
+    btn.disabled = true;
+    let friends = [];
+    try {
+      const res = await apiFetch("/friends");
+      if (res.ok) friends = await res.json();
+    } catch { /* offline — the picker still offers "someone else…" */ }
+    btn.replaceWith(makeSharePicker(recipe, friends));
+  });
+  return btn;
+}
+
+function makeSharePicker(recipe, friends) {
+  const select = document.createElement("select");
+  select.className = "tag-select";
+  select.addEventListener("click", (e) => e.stopPropagation());
+  const restore = () => select.replaceWith(makeShareButton(recipe));
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Share with…";
+  placeholder.disabled = true;
+  placeholder.selected = true;
+  select.appendChild(placeholder);
+  for (const f of friends) {
+    const opt = document.createElement("option");
+    opt.value = f.friend_email;
+    opt.textContent = f.friend_email;
+    select.appendChild(opt);
+  }
+  const other = document.createElement("option");
+  other.value = "__other__";
+  other.textContent = "✉ Someone else…";
+  select.appendChild(other);
+
+  let busy = false;                // guards the blur-restore mid-request
+  select.addEventListener("change", async () => {
+    busy = true;
+    let to = select.value;
+    if (to === "__other__") {
+      to = (prompt("Recipient's email (they must have used this app):") || "").trim();
+      if (!to) { restore(); return; }
+    }
+    try {
+      const res = await apiFetch(`/recipes/${recipe.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to }),
+      });
+      if (!res.ok) {
+        // Surface the backend's own message (e.g. "No user with the email …").
+        const detail = (await res.json().catch(() => ({}))).detail;
+        throw new Error(detail || `HTTP ${res.status}`);
+      }
+      alert(`Recipe shared with ${to}.`);
+    } catch (err) {
+      alert(`Could not share: ${err.message}`);
+    }
+    restore();
+  });
+  select.addEventListener("blur", () => { if (!busy) restore(); });
+  setTimeout(() => select.focus(), 0);
+  return select;
+}
+
 // Build one recipe card. Uses textContent/attributes (not innerHTML) so
 // caption-derived text can't inject markup (XSS-safe).
 function renderRecipeCard(recipe) {
@@ -461,6 +535,7 @@ function renderRecipeCard(recipe) {
   tools.className = "recipe-tools";
   tools.appendChild(makeFlagToggle(recipe, "is_favorite", "★", "☆", "Favorites"));
   tools.appendChild(makeFlagToggle(recipe, "is_up_next", "🔖", "🔖", "Up Next"));
+  tools.appendChild(makeShareButton(recipe));
   card.appendChild(tools);
 
   if (recipe.source_url) {

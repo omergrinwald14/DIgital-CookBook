@@ -203,8 +203,8 @@ personal contact list (no approval); share picker = friends drop-list +
   registered → 404; auto-adds to friends), GET /shared inbox,
   POST /shared/{id}/accept (copies via save_recipe; recipient-unknown tag
   names skipped) + /dismiss. Full round-trip + guards proven via TestClient.
-- [ ] 9-5. Frontend: share button on the card — friends drop-list +
-  "someone else…" email entry (unknown email = clear error).
+- [x] 9-5. Frontend: ↗ on the card swaps into a picker — friends drop-list
+  + "someone else…" email entry (unknown email = backend's 404 message).
 - [ ] 9-6. Frontend: "Shared with me" screen with add/dismiss.
 
 ## TODO backlog — pick a task when time is convenient

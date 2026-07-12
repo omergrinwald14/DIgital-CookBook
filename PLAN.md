@@ -199,9 +199,10 @@ personal contact list (no approval); share picker = friends drop-list +
 - [x] 9-3. Friends: `friends(owner, friend_email)` + GET/POST/DELETE
   /friends; POST validates the friend is a registered user (404). Both
   columns FK→users(email) cascade; delete_user now drops the registry row.
-- [ ] 9-4. Share endpoints: POST /recipes/{id}/share (recipient must be
-  registered; auto-adds to friends), GET /shared, accept + dismiss.
-  (Storage layer already written in 9-2a: share/list/resolve.)
+- [x] 9-4. Share endpoints: POST /recipes/{id}/share (recipient must be
+  registered → 404; auto-adds to friends), GET /shared inbox,
+  POST /shared/{id}/accept (copies via save_recipe; recipient-unknown tag
+  names skipped) + /dismiss. Full round-trip + guards proven via TestClient.
 - [ ] 9-5. Frontend: share button on the card — friends drop-list +
   "someone else…" email entry (unknown email = clear error).
 - [ ] 9-6. Frontend: "Shared with me" screen with add/dismiss.

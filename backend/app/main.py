@@ -23,13 +23,17 @@ from app.storage import (
     find_recipe_by_url,
     list_friends,
     list_recipes,
+    list_shares,
     list_tags,
     register_user,
     remove_friend,
+    resolve_share,
     save_recipe,
     set_recipe_photo,
+    share_recipe,
     store_thumbnail,
     update_recipe,
+    user_exists,
 )
 
 app = FastAPI(title="Digital CookBook API")
@@ -229,6 +233,60 @@ def remove_recipe(recipe_id: int, user: str = Depends(current_user)) -> dict:
     """Delete one of the caller's recipes by id."""
     delete_recipe(recipe_id, owner=user)
     return {"status": "deleted", "id": recipe_id}
+
+
+class ShareRequest(BaseModel):
+    """Body for POST /recipes/{id}/share — who receives the offer."""
+    to: str
+
+
+@app.post("/recipes/{recipe_id}/share", status_code=201)
+def share_a_recipe(recipe_id: int, body: ShareRequest,
+                   user: str = Depends(current_user)) -> dict:
+    """Offer one of the caller's recipes to a registered user.
+
+    A valid recipient is auto-added to the caller's friends list, so the
+    share picker's drop-list builds itself.
+    """
+    to = body.to.strip().lower()
+    if not to:
+        raise HTTPException(status_code=400, detail="Recipient email required.")
+    if to == user.lower():
+        raise HTTPException(status_code=400,
+                            detail="You can't share a recipe with yourself.")
+    if not user_exists(to):
+        raise HTTPException(status_code=404,
+                            detail=f"No user with the email {to}.")
+    try:
+        share = share_recipe(recipe_id, from_owner=user, to_owner=to)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Recipe not found.")
+    add_friend(to, owner=user.lower())
+    return share
+
+
+@app.get("/shared")
+def get_shares(user: str = Depends(current_user)) -> list[dict]:
+    """The caller's inbox: pending share offers with recipe previews."""
+    return list_shares(owner=user.lower())
+
+
+@app.post("/shared/{share_id}/accept")
+def accept_share(share_id: int, user: str = Depends(current_user)) -> dict:
+    """Copy the offered recipe into the caller's cookbook."""
+    try:
+        return resolve_share(share_id, owner=user.lower(), accept=True)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Share not found.")
+
+
+@app.post("/shared/{share_id}/dismiss")
+def dismiss_share(share_id: int, user: str = Depends(current_user)) -> dict:
+    """Decline an offer (it disappears; a re-share revives it)."""
+    try:
+        return resolve_share(share_id, owner=user.lower(), accept=False)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Share not found.")
 
 
 class FriendRequest(BaseModel):

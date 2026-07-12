@@ -412,8 +412,15 @@ function renderTagChips(recipe) {
 // and auto-adds new recipients to the friends list for next time.
 function makeShareButton(recipe) {
   const btn = document.createElement("button");
-  btn.className = "flag-toggle";
-  btn.textContent = "↗";
+  btn.className = "share-btn";
+  // Feather "share-2" — the standard web share icon (three linked dots).
+  btn.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/>' +
+    '<circle cx="18" cy="19" r="3"/>' +
+    '<line x1="8.6" y1="10.7" x2="15.4" y2="6.3"/>' +
+    '<line x1="8.6" y1="13.3" x2="15.4" y2="17.7"/></svg>Share';
   btn.title = "Share recipe";
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();                  // don't expand the card

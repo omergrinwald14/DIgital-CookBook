@@ -88,6 +88,14 @@ class RecipePatch(BaseModel):
     steps: list[str] | None = None
 
 
+class RecipeCreate(BaseModel):
+    """Body for POST /recipes — a manually typed recipe (no video source)."""
+    title: str
+    ingredients: list[Ingredient] | None = None
+    steps: list[str] | None = None
+    tags: list[str] = []
+
+
 @app.get("/")
 def health() -> dict:
     """Simple health check — confirms the server is running."""
@@ -144,6 +152,27 @@ def get_recipes(
     only recipes carrying every requested tag are returned.
     """
     return list_recipes(tag, collection, owner=user)
+
+
+@app.post("/recipes", status_code=201)
+def add_recipe(body: RecipeCreate, user: str = Depends(current_user)) -> dict:
+    """Create a recipe typed in by hand — no fetch/parse, straight to storage."""
+    if not body.title.strip():
+        raise HTTPException(status_code=400, detail="Title cannot be empty.")
+    return save_recipe(
+        {
+            "title": body.title.strip(),
+            "tags": body.tags,
+            "ingredients": (
+                [i.model_dump() for i in body.ingredients]
+                if body.ingredients is not None else None
+            ),
+            "steps": body.steps,
+            "source_url": None,
+            "thumbnail": None,
+        },
+        owner=user,
+    )
 
 
 @app.patch("/recipes/{recipe_id}")

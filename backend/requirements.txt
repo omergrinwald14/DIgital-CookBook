@@ -16,3 +16,6 @@ uvicorn[standard]
 
 # Supabase client — reads/writes our hosted Postgres database.
 supabase
+
+# FastAPI's parser for multipart form data (browser file uploads).
+python-multipart

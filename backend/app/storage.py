@@ -234,6 +234,29 @@ def store_thumbnail(source_url: str, thumbnail_url: str | None) -> str | None:
 
 
 @_synchronized
+def set_recipe_photo(recipe_id: int, content: bytes, content_type: str, *, owner: str) -> dict:
+    """Store an uploaded cover photo and point the recipe's thumbnail at it.
+
+    Stable name per recipe: re-uploading replaces the old photo instead of
+    piling up files. Ownership-checked like every other per-recipe write.
+    """
+    client = _client()
+    found = (client.table("recipes").select("id")
+             .eq("id", recipe_id).eq("owner", owner).execute())
+    if not found.data:
+        raise LookupError(f"Recipe {recipe_id} not found")
+    name = f"manual-{recipe_id}"
+    client.storage.from_("thumbnails").upload(
+        name, content,
+        file_options={"content-type": content_type, "upsert": "true"},
+    )
+    url = client.storage.from_("thumbnails").get_public_url(name)
+    result = (client.table("recipes").update({"thumbnail": url})
+              .eq("id", recipe_id).execute())
+    return result.data[0]
+
+
+@_synchronized
 def find_recipe_by_url(source_url: str, *, owner: str) -> dict | None:
     """Return OWNER's stored recipe for a source_url, or None if not saved yet.
 

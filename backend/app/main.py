@@ -5,7 +5,7 @@ phone's Share button) can use it. The heavy lifting lives in the imported
 modules; this file just wires them together behind endpoints.
 """
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -23,6 +23,7 @@ from app.storage import (
     list_recipes,
     list_tags,
     save_recipe,
+    set_recipe_photo,
     store_thumbnail,
     update_recipe,
 )
@@ -173,6 +174,21 @@ def add_recipe(body: RecipeCreate, user: str = Depends(current_user)) -> dict:
         },
         owner=user,
     )
+
+
+@app.post("/recipes/{recipe_id}/photo")
+def upload_photo(recipe_id: int, photo: UploadFile,
+                 user: str = Depends(current_user)) -> dict:
+    """Attach an uploaded cover photo to one of the caller's recipes."""
+    if not (photo.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image.")
+    content = photo.file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 5 MB).")
+    try:
+        return set_recipe_photo(recipe_id, content, photo.content_type, owner=user)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Recipe not found.")
 
 
 @app.patch("/recipes/{recipe_id}")

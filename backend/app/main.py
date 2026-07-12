@@ -15,14 +15,17 @@ from app.parser import parse_recipe
 from app.tiktok import fetch_caption as fetch_tiktok
 from app.tiktok import normalize_tiktok_url
 from app.storage import (
+    add_friend,
     create_tag,
     delete_recipe,
     delete_tag,
     delete_user,
     find_recipe_by_url,
+    list_friends,
     list_recipes,
     list_tags,
     register_user,
+    remove_friend,
     save_recipe,
     set_recipe_photo,
     store_thumbnail,
@@ -226,6 +229,41 @@ def remove_recipe(recipe_id: int, user: str = Depends(current_user)) -> dict:
     """Delete one of the caller's recipes by id."""
     delete_recipe(recipe_id, owner=user)
     return {"status": "deleted", "id": recipe_id}
+
+
+class FriendRequest(BaseModel):
+    """Body for POST /friends — the friend's email."""
+    email: str
+
+
+@app.get("/friends")
+def get_friends(user: str = Depends(current_user)) -> list[dict]:
+    """The caller's friends list (share address book)."""
+    return list_friends(owner=user.lower())
+
+
+@app.post("/friends", status_code=201)
+def add_a_friend(body: FriendRequest, user: str = Depends(current_user)) -> dict:
+    """Add a friend by email; they must be a registered user (404 otherwise)."""
+    email = body.email.strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email required.")
+    if email == user.lower():
+        raise HTTPException(status_code=400,
+                            detail="You're already you — pick someone else.")
+    try:
+        return add_friend(email, owner=user.lower())
+    except LookupError:
+        raise HTTPException(status_code=404,
+                            detail=f"No user with the email {email}.")
+
+
+@app.delete("/friends/{email}")
+def remove_a_friend(email: str, user: str = Depends(current_user)) -> dict:
+    """Remove a friend from the caller's list."""
+    email = email.strip().lower()
+    remove_friend(email, owner=user.lower())
+    return {"status": "deleted", "friend": email}
 
 
 @app.post("/users", status_code=201)

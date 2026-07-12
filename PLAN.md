@@ -196,8 +196,9 @@ personal contact list (no approval); share picker = friends drop-list +
   to_owner); cascade on recipe delete. Live embeds verified intact.
 - [x] 9-2. Users registry: `users(email pk)` — login upserts it (POST
   /users); backfilled 4 existing owners. Enables recipient validation.
-- [ ] 9-3. Friends: `friends(owner, friend_email)` + GET/POST/DELETE
-  /friends; POST validates the friend is a registered user.
+- [x] 9-3. Friends: `friends(owner, friend_email)` + GET/POST/DELETE
+  /friends; POST validates the friend is a registered user (404). Both
+  columns FK→users(email) cascade; delete_user now drops the registry row.
 - [ ] 9-4. Share endpoints: POST /recipes/{id}/share (recipient must be
   registered; auto-adds to friends), GET /shared, accept + dismiss.
   (Storage layer already written in 9-2a: share/list/resolve.)

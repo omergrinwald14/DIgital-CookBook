@@ -425,7 +425,11 @@ def delete_user(owner: str) -> dict:
     client = _client()
     recipes = client.table("recipes").delete().eq("owner", owner).execute()
     tags = client.table("tags").delete().eq("owner", owner).execute()
-    return {"recipes": len(recipes.data), "tags": len(tags.data)}
+    # Registry row last: its FK cascades erase the user from every friends
+    # list (theirs and other people's).
+    users = client.table("users").delete().eq("email", owner).execute()
+    return {"recipes": len(recipes.data), "tags": len(tags.data),
+            "users": len(users.data)}
 
 
 @_synchronized
@@ -446,6 +450,43 @@ def register_user(email: str) -> dict:
         {"email": email}, on_conflict="email"
     ).execute()
     return result.data[0]
+
+
+@_synchronized
+def user_exists(email: str) -> bool:
+    """Is EMAIL in the users registry? (friend/recipient validation)."""
+    rows = _client().table("users").select("email").eq("email", email).execute()
+    return bool(rows.data)
+
+
+@_synchronized
+def list_friends(*, owner: str) -> list[dict]:
+    """OWNER's friends (their personal share address book)."""
+    result = (_client().table("friends").select("friend_email, created_at")
+              .eq("owner", owner).order("friend_email").execute())
+    return result.data
+
+
+@_synchronized
+def add_friend(friend_email: str, *, owner: str) -> dict:
+    """Add FRIEND_EMAIL to OWNER's list. Must be a registered user.
+
+    Upsert: adding an existing friend is a harmless no-op, not an error.
+    """
+    if not user_exists(friend_email):
+        raise LookupError(f"{friend_email} is not a registered user")
+    result = _client().table("friends").upsert(
+        {"owner": owner, "friend_email": friend_email},
+        on_conflict="owner,friend_email",
+    ).execute()
+    return result.data[0]
+
+
+@_synchronized
+def remove_friend(friend_email: str, *, owner: str) -> None:
+    """Drop FRIEND_EMAIL from OWNER's list (unknown email is a no-op)."""
+    (_client().table("friends").delete()
+     .eq("owner", owner).eq("friend_email", friend_email).execute())
 
 
 @_synchronized

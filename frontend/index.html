@@ -14,6 +14,7 @@
 <body>
   <header>
     <h1>Digital CookBook</h1>
+    <button id="usage-help">How to use</button>
     <button id="install-help">How to install</button>
     <button id="user-badge" hidden title="Switch user"></button>
   </header>
@@ -78,6 +79,42 @@
           <li>Found a recipe in Instagram, TikTok or Safari? Tap <strong>Share</strong>.</li>
           <li>Pick the <strong>CookBook</strong> shortcut from the list.</li>
           <li>Wait for the confirmation alert — you never leave the app you're in.</li>
+        </ol>
+      </section>
+    </div>
+  </div>
+
+  <!-- Usage guide: same full-screen overlay pattern as the install guide,
+       but for what to do INSIDE the app. Opened from the header. -->
+  <div id="usage-guide" hidden>
+    <div class="guide-inner">
+      <div class="guide-top">
+        <h2>How to use the app</h2>
+        <button id="usage-guide-close" title="Back">←</button>
+      </div>
+      <section>
+        <h3>➕ Add recipes</h3>
+        <ol>
+          <li>Paste an Instagram or TikTok link into <strong>Add a recipe</strong> and tap <strong>Import</strong> — the recipe is read for you.</li>
+          <li>Even easier: share straight from Instagram or TikTok to the CookBook (see <strong>How to install</strong> for the one-time setup).</li>
+          <li>Or tap <strong>✎ Or create one yourself</strong> to type a recipe in, with an optional photo.</li>
+        </ol>
+        <h3>🍳 Your recipes</h3>
+        <ol>
+          <li>Tap a recipe card to open its ingredients and steps; tap again to close.</li>
+          <li><strong>✎</strong> edits a recipe, <strong>×</strong> deletes it, <strong>Watch Video</strong> opens the original post.</li>
+          <li><strong>★</strong> marks a favorite. <strong>🔖</strong> puts it on your Up Next list — things you plan to cook soon.</li>
+        </ol>
+        <h3>🏷 Tags &amp; search</h3>
+        <ol>
+          <li>Tap <strong>+</strong> on a recipe card to tag it (pick an existing tag or make a new one).</li>
+          <li>Tap the tag pills at the top to filter your recipes — you can combine several. <strong>More ▾</strong> shows all your tags.</li>
+          <li>The search box finds recipes by title, ingredient or tag.</li>
+        </ol>
+        <h3>↗ Share with family and friends</h3>
+        <ol>
+          <li>Tap <strong>Share</strong> on a recipe card and pick a friend — or <strong>✉ Someone else…</strong> and type their email (they need to have used this app once).</li>
+          <li>Recipes shared with you appear under <strong>Shared with me</strong>: <strong>Add</strong> copies the recipe into your cookbook, <strong>Dismiss</strong> hides the offer.</li>
         </ol>
       </section>
     </div>

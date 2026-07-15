@@ -928,6 +928,15 @@ document.querySelectorAll(".guide-tab").forEach((tab) =>
   tab.addEventListener("click", () => selectGuideTab(tab.dataset.platform))
 );
 
+// Usage guide: same overlay pattern, no tabs — plain open/close.
+const usageGuide = document.getElementById("usage-guide");
+document.getElementById("usage-help").addEventListener("click", () => {
+  usageGuide.hidden = false;
+});
+document.getElementById("usage-guide-close").addEventListener("click", () => {
+  usageGuide.hidden = true;
+});
+
 // Register the service worker (enables PWA install + Web Share Target).
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch((err) =>

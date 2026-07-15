@@ -866,16 +866,31 @@ function boot() {
 const loginScreen = document.getElementById("login-screen");
 const userBadge = document.getElementById("user-badge");
 
+// The badge is just a 👤 icon (saves header width on phones); the email
+// itself is revealed on tap, alongside the switch-user prompt.
+let currentUserEmail = null;
 function showUserBadge(email) {
-  userBadge.textContent = email;
+  currentUserEmail = email;
+  userBadge.textContent = "👤";
+  userBadge.title = email;   // long-press / hover shows it too
   userBadge.hidden = false;
 }
 
-// The badge doubles as "switch user": clear the identity and start over.
-userBadge.addEventListener("click", () => {
-  if (!confirm("Switch user? You'll be asked for an email again.")) return;
-  localStorage.removeItem(USER_KEY);
+// The 👤 badge toggles a small dropdown (email + switch-user), instead of
+// a native confirm — smoother, and it stays inside the app's own styling.
+const userMenu = document.getElementById("user-menu");
+userBadge.addEventListener("click", (e) => {
+  e.stopPropagation();                       // don't trip the outside-click close
+  document.getElementById("user-menu-email").textContent = currentUserEmail;
+  userMenu.hidden = !userMenu.hidden;
+});
+document.getElementById("user-menu-switch").addEventListener("click", () => {
+  localStorage.removeItem(USER_KEY);         // clear identity, start over
   location.reload();
+});
+// Tap anywhere outside the menu closes it.
+document.addEventListener("click", (e) => {
+  if (!userMenu.hidden && !userMenu.contains(e.target)) userMenu.hidden = true;
 });
 
 document.getElementById("login-form").addEventListener("submit", (e) => {

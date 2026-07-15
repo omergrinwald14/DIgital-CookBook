@@ -17,6 +17,12 @@
     <button id="usage-help">How to use</button>
     <button id="install-help">How to install</button>
     <button id="user-badge" hidden title="Switch user"></button>
+    <!-- Tapping the 👤 badge opens this dropdown (smoother than a native
+         confirm): shows the signed-in email + a switch-user button. -->
+    <div id="user-menu" hidden>
+      <p id="user-menu-email"></p>
+      <button type="button" id="user-menu-switch">Switch user</button>
+    </div>
   </header>
 
   <!-- Login gate (5-3c): shown only when localStorage has no identity yet.

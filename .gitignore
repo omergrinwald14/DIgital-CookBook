@@ -2,7 +2,7 @@
 
 # Private session notes — local working file, not part of the project.
 handoff.txt
-
+PLAN.md
 # Secrets, anywhere in the repo.
 .env
 

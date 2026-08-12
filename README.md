@@ -9,8 +9,7 @@ the original video. Later, open the app and browse your recipes by tag to actual
 - **App:** https://digital-cookbook.omergrinwald14.workers.dev
 - **API:** https://digital-cookbook-api.onrender.com
 
-Built as a learning project, in small reviewed steps — the full roadmap lives in
-[PLAN.md](PLAN.md).
+Built as a learning project, in small reviewed steps.
 
 ## Features
 
@@ -75,7 +74,6 @@ frontend/
   manifest.json   PWA manifest, incl. share_target
 render.yaml       Render blueprint for the backend
 wrangler.jsonc    Cloudflare config for the static frontend
-PLAN.md           build plan and roadmap
 ```
 
 ## API
@@ -135,9 +133,10 @@ py -m http.server 5500 -d frontend
 Then open http://localhost:5500. Point the frontend at your local API by editing the
 `API_BASE` constant at the top of [frontend/app.js](frontend/app.js).
 
-The database schema (tables `recipes`, `tags`, `recipe_tags`, `users`, `friends`,
-`shared_recipes`, plus a public `thumbnails` bucket) is managed by hand in the Supabase
-SQL editor; the shape of each table is documented in [PLAN.md](PLAN.md).
+The database schema is managed by hand in the Supabase SQL editor: tables `recipes`,
+`tags`, `recipe_tags`, `users`, `friends` and `shared_recipes`, plus a public
+`thumbnails` storage bucket. Every query against them lives in `backend/app/storage.py`,
+which is the quickest way to read the exact columns.
 
 ## Deployment
 

@@ -1,0 +1,16 @@
+# Repo-wide ignores (backend/.gitignore covers the Python venv + secrets too).
+
+# Private session notes — local working file, not part of the project.
+handoff.txt
+
+# Secrets, anywhere in the repo.
+.env
+
+# Python leftovers.
+.venv/
+__pycache__/
+*.pyc
+
+# OS junk.
+Thumbs.db
+.DS_Store
